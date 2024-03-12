@@ -1,0 +1,39 @@
+name: Issue Commenter
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  comment-issue:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Execute Python script on issue content
+        id: process_issue
+        run: |
+          echo "ISSUE_BODY<<EOF" >> $GITHUB_ENV
+          echo "${{ github.event.issue.body }}" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+          python .github/scripts/process_issue.py "$ISSUE_BODY" > output.txt
+          echo "::set-output name=result::$(<output.txt)"
+
+      - name: Comment on the issue
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            const issueComment = ${{ steps.process_issue.outputs.result }}
+            github.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.name,
+              body: issueComment,
+            })
