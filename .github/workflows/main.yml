@@ -22,7 +22,8 @@ jobs:
           echo "ISSUE_BODY<<EOF" >> $GITHUB_ENV
           echo "${{ github.event.issue.body }}" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
-          python .github/scripts/process_issue.py "$ISSUE_BODY" > output.txt
+          echo "$ISSUE_BODY" > input.txt
+          python .github/scripts/process_issue.py > output.txt
           echo "::set-output name=result::$(<output.txt)"
 
       - name: Comment on the issue
