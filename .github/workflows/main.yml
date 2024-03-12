@@ -19,10 +19,10 @@ jobs:
       - name: Execute Python script on issue content
         id: process_issue
         run: |
-          echo "ISSUE_BODY<<EOF" >> $GITHUB_ENV
-          echo "${{ github.event.issue.body }}" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
-          echo "$ISSUE_BODY" > input.txt
+          # echo "ISSUE_BODY<<EOF" >> $GITHUB_ENV
+          echo "${{ github.event.issue.body }}" >> input.txt
+          # echo "EOF" >> $GITHUB_ENV
+          # echo "$ISSUE_BODY" > input.txt
           python .github/scripts/process_issue.py > output.txt
           echo "::set-output name=result::$(<output.txt)"
 
