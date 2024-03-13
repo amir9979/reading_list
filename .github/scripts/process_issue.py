@@ -1,15 +1,16 @@
 import json
 import os
+import re
 
 def parse_email_content(email_content):
-    start = " __\n         \n         ### \n         \n         ###"
+    start = " __\n \n ### \n \n ###"
     sep = "---|---|---|---"
     save_sep = "[![Save]"
     initial_sep = '### '
     link_start_sep = 'https://scholar.google.co.uk/scholar_url?url='
     link_end_sep = '&hl=en'
 
-    print("len(email_content)")
+    print(email_content[600:1200])
     print(len(email_content))
     print(len(email_content.split(start)))
     email_content.split(start)[1]
@@ -36,4 +37,4 @@ def parse_email_content(email_content):
 
     return relevant_info
 
-print(parse_email_content(os.environ['ISSUE_BODY']))
+print(parse_email_content(re.sub(' +', ' ',os.environ['ISSUE_BODY'])))
