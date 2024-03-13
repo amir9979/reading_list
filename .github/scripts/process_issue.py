@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+import os
 
 def parse_email_content(email_content):
     start = " __\n         \n         ### \n         \n         ###"
@@ -31,4 +32,4 @@ def parse_email_content(email_content):
 
     return relevant_info
 
-print(parse_email_content(Path('input.txt').read_text()))
+print(parse_email_content(os.environ['ISSUE_BODY']))
