@@ -1,5 +1,4 @@
 import json
-from pathlib import Path
 import os
 
 def parse_email_content(email_content):
@@ -10,6 +9,7 @@ def parse_email_content(email_content):
     link_start_sep = 'https://scholar.google.co.uk/scholar_url?url='
     link_end_sep = '&hl=en'
 
+    print("len(email_content)")
     print(len(email_content))
     papers = [x.split(save_sep)[0] for x in email_content.split(start)[1].split(sep)][:-1]
     papers = [p.split(initial_sep)[1] for p in papers]
