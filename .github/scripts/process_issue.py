@@ -31,5 +31,4 @@ def parse_email_content(email_content):
 
     return relevant_info
 
-# Parse the provided email content
 print(parse_email_content(Path('input.txt').read_text()))
