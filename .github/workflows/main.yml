@@ -37,7 +37,7 @@ jobs:
         run: |
             cat output.json
             cat ${{ steps.process_issue.outputs.content }}
-            cat process.env.other_content
+            cat $other_content
 
 
       - name: Comment on the issue
