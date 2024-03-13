@@ -3,10 +3,10 @@ import os
 import re
 
 def parse_email_content(email_content):
-    start = '\r\n\r\n### \r\n\r\n### \r\n\r\n###'
+    start = '\r\n\r\n### \r\n\r\n### \r\n\r\n'
     sep = "---|---|---|---"
     save_sep = "[![Save]"
-    initial_sep = '### '
+    initial_sep = '###'
     link_start_sep = 'https://scholar.google.co.uk/scholar_url?url='
     link_end_sep = '&hl=en'
 
