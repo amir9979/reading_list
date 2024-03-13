@@ -1,13 +1,12 @@
 import json
 import os
-import re
 
 def parse_email_content(email_content):
     start = '\r\n\r\n### \r\n\r\n### \r\n\r\n'
     sep = "---|---|---|---"
     save_sep = "[![Save]"
     initial_sep = '###'
-    link_start_sep = 'https://scholar.google.co.uk/scholar_url?url='
+    link_start_sep = 'scholar_url?url='
     link_end_sep = '&hl=en'
 
     email_content = email_content.split('__')[1].split(start)[1].split(sep)
@@ -18,7 +17,9 @@ def parse_email_content(email_content):
         clear_lines = [l.strip() for l in paper.splitlines() if l.strip()]
         title, fulllink = (clear_lines[0].split(' [')[1] if ' [' in clear_lines[0] else clear_lines[0].replace('[', '')).split('](')
         print(fulllink)
-        link = fulllink.split(link_end_sep)[0].split(link_start_sep)[1]
+        start_link = fulllink.split(link_end_sep)[0]
+        print(start_link)
+        link = start_link.split(link_start_sep)[1]
         details = clear_lines[1]
         authors = [a.strip() for a in details.split('-')[0].split(',')]
         venue, year = details.split('-')[1].split(',')
