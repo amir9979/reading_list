@@ -32,12 +32,6 @@ jobs:
           ISSUE_NUMBER: ${{github.event.issue.number}}
         run: |
             python .github/scripts/process_issue.py >> pr/output_$ISSUE_NUMBER.json
-            git config --global user.name 'actions'
-            git config --global user.email 'actions@example.com'
-            git add .
-            git checkout -b PR_$ISSUE_NUMBER
-            git commit -m added_$ISSUE_NUMBER
-            git push origin PR_$ISSUE_NUMBER
 
 
       # - name: see output
