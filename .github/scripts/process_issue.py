@@ -10,7 +10,7 @@ def parse_email_content(email_content):
     link_start_sep = 'https://scholar.google.co.uk/scholar_url?url='
     link_end_sep = '&hl=en'
 
-    print(email_content[600:1200])
+    print(email_content[300:600])
     print(len(email_content))
     print(len(email_content.split(start)))
     email_content.split(start)[1]
