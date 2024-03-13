@@ -22,18 +22,20 @@ jobs:
           ISSUE_TITLE: ${{github.event.issue.title}}
           ISSUE_BODY: ${{github.event.issue.body}}
         run: |
-          python .github/scripts/process_issue.py > output.txt
-          echo "::set-output name=result::$(<output.txt)"
+          echo "file_content<<EOF" >> $GITHUB_ENV
+          python .github/scripts/process_issue.py >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
 
       - name: Comment on the issue
         uses: actions/github-script@v6
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
-            const issueComment = ${{ steps.process_issue.outputs.result }}
+            const message = process.env.file_content;
             github.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.name,
-              body: issueComment,
+              body: message,
             })
