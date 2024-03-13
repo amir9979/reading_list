@@ -17,18 +17,11 @@ def parse_email_content(email_content):
         clear_lines = [l.strip() for l in paper.splitlines() if l.strip()]
         title, fulllink = (clear_lines[0].split(' [')[1] if ' [' in clear_lines[0] else clear_lines[0].replace('[', '')).split('](')
         link = fulllink.split(link_end_sep)[0].split(link_start_sep)[1]
-        details = clear_lines[1]
-        print(details)
-        authors = [a.strip() for a in details.split('-')[0].split(',')]
-        venue, year = details.split('-')[1].split(',')
-        abstract = ' '.join(clear_lines[2:])
         relevant_info.append({
             'title': title,
             'link': link,
-            'authors': authors,
-            'venue': venue.strip(),
-            'year': year.strip(),
-            'abstract': abstract.strip()
+            'details': clear_lines[1],
+            'abstract': ' '.join(clear_lines[2:]).strip()
         })
 
     return relevant_info
