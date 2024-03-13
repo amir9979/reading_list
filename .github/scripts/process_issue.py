@@ -1,5 +1,6 @@
 import json
 import os
+import pandas as pd
 
 def parse_email_content(email_content):
     start = '\r\n\r\n### \r\n\r\n### \r\n\r\n'
@@ -27,6 +28,6 @@ def parse_email_content(email_content):
             'abstract': ' '.join(clear_lines[2:]).strip()
         })
 
-    return json.dumps(relevant_info)
+    return json.dumps(''.join([c for c in relevant_info if c.isascii()]))
 
-print(repr(parse_email_content(os.environ['ISSUE_BODY'])))
+parse_email_content(os.environ['ISSUE_BODY'])
