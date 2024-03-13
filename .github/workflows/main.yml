@@ -23,26 +23,22 @@ jobs:
         env:
           ISSUE_TITLE: ${{github.event.issue.title}}
           ISSUE_BODY: ${{github.event.issue.body}}
-        run: |
-          echo "file_content<<EOF" >> $GITHUB_ENV
-          python .github/scripts/process_issue.py >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+        run: python .github/scripts/process_issue.py >> output.json
 
       - name: Comment on the issue
         uses: actions/github-script@v6
-        env:
-          file_content: ${{ env.file_content }}
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
           script: |
-            const message = process.env.file_content;
+            const fs = require('fs');
+            const path = require('path');
             const issueNumber = context.issue.number;
             const owner = context.repo.owner;
             const repo = context.repo.repo;
-            const comment = "Thank you for opening an issue! We will look into it as soon as possible.";
+            const body = fs.readFileSync('output.json', 'utf8');
             await github.rest.issues.createComment({
               owner,
               repo,
               issue_number: issueNumber,
-              body: message
+              body
             });
