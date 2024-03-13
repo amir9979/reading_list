@@ -28,7 +28,11 @@ jobs:
           ISSUE_BODY: ${{github.event.issue.body}}
           ISSUE_NUMBER: ${{github.event.issue.number}}
         run: |
-            python .github/scripts/process_issue.py >> output_$ISSUE_NUMBER.json
+            python .github/scripts/process_issue.py >> pr/output_$ISSUE_NUMBER.json
+            git checkout -b PR_$ISSUE_NUMBER
+            git commit -m added_$ISSUE_NUMBER
+            git push origin master
+
 
       # - name: see output
       #   id: see_output
@@ -48,7 +52,7 @@ jobs:
             const issueNumber = context.issue.number;
             const owner = context.repo.owner;
             const repo = context.repo.repo;
-            const body = fs.readFileSync('output_' + issueNumber + '.json', 'utf8');
+            const body = fs.readFileSync('pr/output_' + issueNumber + '.json', 'utf8');
             await github.rest.issues.createComment({
               owner,
               repo,
