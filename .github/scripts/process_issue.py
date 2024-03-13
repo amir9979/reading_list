@@ -3,16 +3,14 @@ import os
 import re
 
 def parse_email_content(email_content):
-    start = " __\n \n ### \n \n ###"
+    start = "__\n \n### \n \n###"
     sep = "---|---|---|---"
     save_sep = "[![Save]"
     initial_sep = '### '
     link_start_sep = 'https://scholar.google.co.uk/scholar_url?url='
     link_end_sep = '&hl=en'
 
-    print(email_content[300:600])
-    print(len(email_content))
-    print(len(email_content.split(start)))
+    print(str(email_content[email_content.index('__\n')-10:email_content.index('__\n')-10+50]))
     email_content.split(start)[1]
     email_content.split(start)[1].split(sep)
     papers = [x.split(save_sep)[0] for x in email_content.split(start)[1].split(sep)][:-1]
