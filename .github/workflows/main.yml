@@ -36,8 +36,8 @@ jobs:
         id: see_output
         run: |
             cat output.json
-            # cat ${{ steps.process_issue.outputs.content }}
-            cat $other_content
+            echo ${{ steps.process_issue.outputs.content }}
+            echo $other_content
 
 
       - name: Comment on the issue
