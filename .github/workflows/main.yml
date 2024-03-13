@@ -18,6 +18,9 @@ jobs:
         with:
           python-version: '3.x'
 
+      - name: Install pandas
+        run: python -m pip install pandas
+
       - name: Execute Python script on issue content
         id: process_issue
         env:
