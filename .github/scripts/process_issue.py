@@ -17,6 +17,7 @@ def parse_email_content(email_content):
     for paper in papers:
         clear_lines = [l.strip() for l in paper.splitlines() if l.strip()]
         title, fulllink = (clear_lines[0].split(' [')[1] if ' [' in clear_lines[0] else clear_lines[0].replace('[', '')).split('](')
+        print(fulllink)
         link = fulllink.split(link_end_sep)[0].split(link_start_sep)[1]
         details = clear_lines[1]
         authors = [a.strip() for a in details.split('-')[0].split(',')]
