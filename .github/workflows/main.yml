@@ -25,6 +25,13 @@ jobs:
           ISSUE_BODY: ${{github.event.issue.body}}
         run: python .github/scripts/process_issue.py >> output.json
 
+      - name: see output
+        id: see_output
+        env:
+          ISSUE_TITLE: ${{github.event.issue.title}}
+          ISSUE_BODY: ${{github.event.issue.body}}
+        run: cat output.json
+
       - name: Comment on the issue
         uses: actions/github-script@v6
         with:
