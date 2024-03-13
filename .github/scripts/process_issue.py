@@ -13,7 +13,7 @@ def parse_email_content(email_content):
     if start not in email_content:
         start = start.replace('\r', '')
     email_content = email_content.split(start)[1].split(sep)
-    email_content = ''.join([c for c in email_content if c.isascii()]
+    email_content = ''.join([c for c in email_content if c.isascii()])
     papers = [x.split(save_sep)[0] for x in email_content][:-1]
     papers = [p.split(initial_sep)[1] for p in papers]
     relevant_info = []
