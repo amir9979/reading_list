@@ -22,7 +22,7 @@ jobs:
           ISSUE_TITLE: ${{github.event.issue.title}}
           ISSUE_BODY: ${{github.event.issue.body}}
         run: |
-          python .github/scripts/process_issue.py 
+          python .github/scripts/process_issue.py > output.txt
           echo "::set-output name=result::$(<output.txt)"
 
       - name: Comment on the issue
