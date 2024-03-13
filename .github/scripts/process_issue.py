@@ -1,6 +1,5 @@
 import json
 import os
-import pandas as pd
 
 def parse_email_content(email_content):
     start = '\r\n\r\n### \r\n\r\n### \r\n\r\n'
