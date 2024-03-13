@@ -27,6 +27,6 @@ def parse_email_content(email_content):
             'abstract': ' '.join(clear_lines[2:]).strip()
         })
 
-    return relevant_info
+    return json.dumps(relevant_info)
 
 print(parse_email_content(os.environ['ISSUE_BODY']))
