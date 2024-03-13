@@ -41,7 +41,35 @@ jobs:
       #       echo ${{ steps.process_issue.outputs.content }}
       #       echo $other_content
 
-
+      - name: Create Pull Request
+        uses: actions/github-script@v6
+        env:
+          ISSUE_TITLE: ${{github.event.issue.title}}
+          ISSUE_BODY: ${{github.event.issue.body}}
+          ISSUE_NUMBER: ${{github.event.issue.number}}
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            const baseBranch = 'main'; // The base branch you want to merge into
+            const headBranch = 'PR_$ISSUE_NUMBER'; // The head branch you want to merge from
+            const prTitle = 'added PR_$ISSUE_NUMBER'; // Title of the PR
+            const prBody = 'This is a detailed description of the changes being merged.'; // Body of the PR
+      
+            const response = await github.rest.pulls.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: prTitle,
+              body: prBody,
+              head: headBranch,
+              base: baseBranch,
+            });
+      
+            if (response.status !== 201) {
+              throw new Error(`Failed to create PR: ${response.status}`);
+            }
+      
+            console.log(`Pull Request created: ${response.data.html_url}`);
+      
       - name: Comment on the issue
         uses: actions/github-script@v6
         with:
