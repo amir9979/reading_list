@@ -27,9 +27,6 @@ jobs:
 
       - name: see output
         id: see_output
-        env:
-          ISSUE_TITLE: ${{github.event.issue.title}}
-          ISSUE_BODY: ${{github.event.issue.body}}
         run: cat output.json
 
       - name: Comment on the issue
