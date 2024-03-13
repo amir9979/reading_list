@@ -46,6 +46,8 @@ jobs:
       #       cat output.json
       #       echo ${{ steps.process_issue.outputs.content }}
       #       echo $other_content
+      - name: Create pr
+        uses: peter-evans/create-pull-request@v6
 
       - name: Create Pull Request
         uses: actions/github-script@v6
