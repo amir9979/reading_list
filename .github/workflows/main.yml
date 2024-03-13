@@ -26,14 +26,9 @@ jobs:
         env:
           ISSUE_TITLE: ${{github.event.issue.title}}
           ISSUE_BODY: ${{github.event.issue.body}}
+          ISSUE_NUMBER: ${{github.event.issue.number}}
         run: |
-            python .github/scripts/process_issue.py >> output.json
-            content=$(cat output.json)
-            echo "::set-output name=content::$content"
-            echo "other_content<<EOF" >> $GITHUB_ENV
-            cat output.json >> $GITHUB_ENV
-            echo "EOF" >> $GITHUB_ENV
-
+            python .github/scripts/process_issue.py >> output_$ISSUE_NUMBER.json
 
       # - name: see output
       #   id: see_output
@@ -53,7 +48,7 @@ jobs:
             const issueNumber = context.issue.number;
             const owner = context.repo.owner;
             const repo = context.repo.repo;
-            const body = fs.readFileSync('output.json', 'utf8');
+            const body = fs.readFileSync('output_' + issueNumber + '.json', 'utf8');
             await github.rest.issues.createComment({
               owner,
               repo,
