@@ -22,9 +22,6 @@ jobs:
           ISSUE_TITLE: ${{github.event.issue.title}}
           ISSUE_BODY: ${{github.event.issue.body}}
         run: |
-          echo "${{ github.event.issue.body }}" > input.txt
-          echo $ISSUE_BODY
-          cat input.txt
           python .github/scripts/process_issue.py > output.txt
           echo "::set-output name=result::$(<output.txt)"
 
