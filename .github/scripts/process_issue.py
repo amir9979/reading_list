@@ -11,7 +11,7 @@ def parse_email_content(email_content):
     link_end_sep = '&hl=en'
 
     email_content = email_content.split('__')[1]
-    print(repr(email_content[:20]))
+    print(repr(email_content[:100]))
     email_content.split(start)[1]
     email_content.split(start)[1].split(sep)
     papers = [x.split(save_sep)[0] for x in email_content.split(start)[1].split(sep)][:-1]
