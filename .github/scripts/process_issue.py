@@ -10,7 +10,7 @@ def parse_email_content(email_content):
     link_start_sep = 'https://scholar.google.co.uk/scholar_url?url='
     link_end_sep = '&hl=en'
 
-    print(str(email_content[email_content.index('__\n')-10:email_content.index('__\n')-10+80]))
+    print(str(email_content[email_content.index('__')-10:email_content.index('__')-10+80]))
     email_content.split(start)[1]
     email_content.split(start)[1].split(sep)
     papers = [x.split(save_sep)[0] for x in email_content.split(start)[1].split(sep)][:-1]
