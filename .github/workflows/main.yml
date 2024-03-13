@@ -28,13 +28,6 @@ jobs:
           python .github/scripts/process_issue.py >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
-      - name: Add comment
-        run: gh issue comment "$NUMBER" --body process.env.file_content
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-          NUMBER: ${{ github.event.issue.number }}
-
       - name: Comment on the issue
         uses: actions/github-script@v6
         with:
@@ -49,5 +42,5 @@ jobs:
               owner,
               repo,
               issue_number: issueNumber,
-              body: comment
+              body: message
             });
