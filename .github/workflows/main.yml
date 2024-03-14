@@ -25,6 +25,15 @@ jobs:
         run: python -m pip install pandas
 
       - name: Execute Python script on issue content
+        id: base_issue
+        env:
+          ISSUE_TITLE: ${{github.event.issue.title}}
+          ISSUE_BODY: ${{github.event.issue.body}}
+          ISSUE_NUMBER: ${{github.event.issue.number}}
+        run: |
+            python .github/scripts/process_issue.py 
+
+      - name: Execute Python script on issue content
         id: process_issue
         env:
           ISSUE_TITLE: ${{github.event.issue.title}}
