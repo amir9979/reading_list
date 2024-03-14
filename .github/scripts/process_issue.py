@@ -10,6 +10,7 @@ def parse_email_content(email_content):
     link_end_sep = '&hl=en'
 
     # email_content = email_content.split('__')[1]
+    print(repr(email_content[:200]))
     if start not in email_content:
         start = start.replace('\r', '')
     email_content = email_content.split(start)[1].split(sep)
