@@ -2,7 +2,7 @@ import json
 import os
 
 def parse_email_content(email_content):
-    start = '\r\n\r\n### \r\n\r\n### \r\n\r\n'
+    start = '\r\n### \r\n\r\n### \r\n\r\n'
     sep = "---|---|---|---"
     save_sep = "[![Save]"
     initial_sep = '###'
