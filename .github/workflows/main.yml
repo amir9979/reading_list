@@ -54,20 +54,20 @@ jobs:
         with:
           branch:  ${{github.event.issue.number}}
 
-      - name: Comment on the issue
-        uses: actions/github-script@v6
-        with:
-          github-token: ${{secrets.GITHUB_TOKEN}}
-          script: |
-            const fs = require('fs');
-            const path = require('path');
-            const issueNumber = context.issue.number;
-            const owner = context.repo.owner;
-            const repo = context.repo.repo;
-            const body = fs.readFileSync('pr/output_' + issueNumber + '.json', 'utf8');
-            await github.rest.issues.createComment({
-              owner,
-              repo,
-              issue_number: issueNumber,
-              body
-            });
+      # - name: Comment on the issue
+      #   uses: actions/github-script@v6
+      #   with:
+      #     github-token: ${{secrets.GITHUB_TOKEN}}
+      #     script: |
+      #       const fs = require('fs');
+      #       const path = require('path');
+      #       const issueNumber = context.issue.number;
+      #       const owner = context.repo.owner;
+      #       const repo = context.repo.repo;
+      #       const body = fs.readFileSync('pr/output_' + issueNumber + '.json', 'utf8');
+      #       await github.rest.issues.createComment({
+      #         owner,
+      #         repo,
+      #         issue_number: issueNumber,
+      #         body
+      #       });
