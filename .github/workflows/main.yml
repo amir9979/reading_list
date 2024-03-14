@@ -51,6 +51,8 @@ jobs:
       #       echo $other_content
       - name: Create pr
         uses: peter-evans/create-pull-request@v6
+        with:
+          branch:  ${{github.event.issue.number}}
 
       - name: Comment on the issue
         uses: actions/github-script@v6
