@@ -9,7 +9,6 @@ def parse_email_content(email_content):
     link_start_sep = 'scholar_url?url='
     link_end_sep = '&hl=en'
 
-    print(repr(email_content[:200]))
     if start not in email_content:
         start = start.replace('\r', '')
     email_content = email_content.split(start)[1].split(sep)[1:]
