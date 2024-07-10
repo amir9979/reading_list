@@ -13,13 +13,22 @@ jobs:
     permissions:
       pull-requests: write
     steps:
-    - uses: hmarr/auto-approve-action@v4
-      with:
-        pull-request-number: ${{ github.event.inputs.pullRequestNumber }}
-        personal_token: ${{ secrets.GH_PERSONAL_TOKEN }}
-        github-token: ${{ secrets.SOME_USERS_PAT }}
+    # - uses: hmarr/auto-approve-action@v4
+    #   with:
+    #     pull-request-number: ${{ github.event.inputs.pullRequestNumber }}
+    #     personal_token: ${{ secrets.GH_PERSONAL_TOKEN }}
+    #     github-token: ${{ secrets.SOME_USERS_PAT }}
 
+      # - name: Checkout
+      #   uses: actions/checkout@v3
 
+      - name: Self-Approve Action
+        uses: nicklegan/github-repo-self-approve-action@v1.0.0
+        # if: github.actor == 'your-username'
+        with:
+          appid: ${{ secrets.APPID }}
+          privatekey: ${{ secrets.PRIVATEKEY }}
+          installationid: ${{ secrets.INSTALLATIONID }}
     #     steps:
     # - name: Approve Pull Request
     #   uses: juliangruber/approve-pull-request-action@v2
