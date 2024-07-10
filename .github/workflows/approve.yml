@@ -1,15 +1,18 @@
 name: Auto approve
-on:
-  pull_request:
-    branches:
-    - master
-    types: [opened] # probably the only one you need
 
+on:
+  workflow_dispatch:
+    inputs: 
+      pullRequestNumber:
+        description: Pull request number to auto-approve
+        required: false
 
 jobs:
-  build:
+  auto-approve:
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
     steps:
-      - uses: hmarr/auto-approve-action@v4
+    - uses: hmarr/auto-approve-action@v4
+      with:
+        pull-request-number: ${{ github.event.inputs.pullRequestNumber }}
