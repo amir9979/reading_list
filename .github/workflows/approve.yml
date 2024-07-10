@@ -23,6 +23,6 @@ jobs:
     - name: Approve Pull Request
       uses: juliangruber/approve-pull-request-action@v2
       with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        personal_token: ${{ secrets.GH_PERSONAL_TOKEN }}
+        github-token:  ${{ secrets.GH_PERSONAL_TOKEN }}
+        # personal_token: ${{ secrets.GH_PERSONAL_TOKEN }}
         number: ${{ github.event.inputs.pullRequestNumber }}
