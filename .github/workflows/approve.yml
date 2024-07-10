@@ -25,4 +25,3 @@ jobs:
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         number: ${{ github.event.inputs.pullRequestNumber }}
-        repo: juliangruber/approve-pull-request-action # optional
