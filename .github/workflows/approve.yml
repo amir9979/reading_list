@@ -13,7 +13,16 @@ jobs:
     permissions:
       pull-requests: write
     steps:
-    - uses: hmarr/auto-approve-action@v4
+    # - uses: hmarr/auto-approve-action@v4
+    #   with:
+    #     pull-request-number: ${{ github.event.inputs.pullRequestNumber }}
+    #     github-token: ${{ secrets.SOME_USERS_PAT }}
+
+
+    #     steps:
+    - name: Approve Pull Request
+      uses: juliangruber/approve-pull-request-action@v2
       with:
-        pull-request-number: ${{ github.event.inputs.pullRequestNumber }}
-        github-token: ${{ secrets.SOME_USERS_PAT }}
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        number: ${{ github.event.inputs.pullRequestNumber }}
+        repo: juliangruber/approve-pull-request-action # optional
