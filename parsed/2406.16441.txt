@@ -1,0 +1,45 @@
+In Figure~, we first define the concept of the universal code with the essential components and then prompt the LLM to generate   based on the existing instruction data (questions  and answers ) and the raw code snippets .  is regarded as the intermediate representation for different tasks, including code generation, code translation, and code summarization. Our proposed model  is trained on the instruction dataset  with the multilingual objectives to fully unleash the potential of .
+
+Given the instructions dataset with  multilingual programming languages , the pre-trained code LLM  trained on  can support Universal-code-of-Thought (). It can be described as:
+
+where  (question) and  (answer) are the instruction pair from . Given the question , the code LLM  first generates   and then outputs the final answer , where  provides key algorithm ideas with natural language comments.
+
+To fully unleash the potential of the , we design multiple objectives to enhance the understanding and generation capability of code LLM. where  is the question-answer generation objective,  is the question-universal-code generation objective,  is the universal-code-answer translation objective, and  is the Universal-code-of-Thought () objective.
+
+Here, we introduce all four training objectives. For all the following objectives, the multilingual corpora  are given.  is the code LLM and  is the number of programming languages.
+
+The training objective  of the standard instruction fine-tuning can be described as: where  and  are the question and answer pair.
+
+The training objective  of the auxiliary universal code generation task can be described as: where  and  are the question and .
+
+The training objective  of generating the executable code answer from  can be described as: where  and  are  and the answer.
+
+The training objective  of generating  and then the executable code answer can be described as: where , , and  are the question, answer, and , respectively.
+
+GPT-4 ()~ is used as the foundation model to generate the . We randomly extract code snippets within  tokens from the StarCoder dataset~ and let GPT-4 summarize the code snippets as the universal code. Based on each code snippet and the corresponding universal code, a self-contained coding problem with a correct solution is created.
+
+Based on a neural architecture known as generative pre-trained Transformers (GPT)~, GPT-3.5 and GPT-4 are LLMs trained on massive datasets of text, code, math equations, and more. They are also trained to follow instructions~, which allows them to generate human-like responses. We use GPT-3.5 Turbo and GPT-4 as the proprietary models because they perform excellently in various code understanding and generation tasks.
+
+To narrow the gap between open-source and closed-source models, a series of open-source models and instruction datasets are proposed to improve code LLMs and bootstrap their instruction-following ability. Starcoder~, Code Llama~, and DeepSeek-Coder~ with different model sizes are introduced into the based model. OctoCoder~, WiazrdCoder~, MagiCoder~, and WaveCoder~ are further fine-tuned on these based code LLMs.
+
+We apply data decontamination before training our  models to decontaminate the code snippets from the starcoder data~, by removing exact matches from HumanEval~, MBPP~, DS-1000~, and GSM8K~.
+
+The HumanEval test set~ is a crafted collection of 164 Python programming problems to test the abilities of code generation models. For each problem, there are roughly 9.6 test cases to check whether the generated code works as intended. Humaneval has become one of the most popular benchmarks to measure how well these code-writing AI models perform, making it a key tool in the field of AI and machine learning for coding.
+
+The MBPP dataset~, comprising approximately 1,000 Python programming challenges sourced from a crowd of contributors, is tailored for beginners in programming, focusing on core principles and the usage of the standard library. The MBPP test set comprised of  problems is selected to evaluate the few-shot inference of the code LLMs. 
+
+The MuliPL-E test set  translates the original HumanEval test set to other 18 programming languages, i.e., Javascript, Java, Typescript, C++, and Rust. We use the MultiPL-E to evaluate the multilingual capabilities of the code LLMs.
+
+ We adopt the Pass@k metric ~ to improve the reliability of our evaluation. We then count the total number of successfully passing test cases, denoted as , to compute the Pass@k, thereby enhancing the accuracy and consistency of the performance assessment. where  is the total number of generated samples for each problem, and  is the number of correct generated code snippets passing all the test cases ().
+
+We expand the open-source Evol-Instruct dataset ~ with nearly 110K samples into the instruction dataset with the universal code. For the code snippets collected from starcoderdata~, we choose 5K code snippets of each language (Python, Javascript, C++, Java, Rust, and Go) to construct the synthetic instruction dataset with universal code. Finally, we obtain the instruction dataset  contains nearly 140K training samples. Code-Llama and DeepSeek-Coder-Base are used as the foundational code LLMs for supervised fine-tuning (SFT). We fine-tune these foundation LLMs on nearly 150K samples generated from  and the starcoder pre-training data.  is fine-tuned on  with  NVIDIA A100-80GB GPUs. The learning rate first increases into  with  warmup steps and then adopts a cosine decay scheduler. We adopt the Adam optimizer~ with a global batch size of  samples, truncating sentences to  tokens.
+
+Table  shows that  significantly beats previous strong open-source baselines using , closing the gap with GPT-3.5 and GPT-4. Magicoder~ and Wavecoder~ both prove the effectiveness of instruction datasets from code snippets. Further,  outperforms the WizardCoder with 15B parameters and Evol-Instruct techniques with the help of the . 
+
+Table  shows that  significantly outperforms strong baselines CodeLlama and Starcoder. For the different backbones (Code Llama and Deepseek-Coder), our method beats most previous methods, especially in other languages, which demonstrates that  can bring the capability of multilingual understanding and generation.
+
+To verify the efficacy of each component, we conduct the ablation study step by step on HumanEval and MBPP. In Table~, we observe that removing the multi-tasks objective (only keeping the  objective: Equation~) will have a  performance drop in HumanEval and a  drop in MBPP. Removing  will further degrade the performance. The results support the effectiveness of each component of .
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% To discuss the effect of the different formats of the universal code, we use different definitions of universal code for . Specifically, we randomly sample 5K samples to generate the instruction dataset with different formats of .  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% In Table~, we can observe that the evaluation results of  1 4 have better performance. Compared to the universal code format  5 and  6,  1 4 has a clear definition and common structure, which brings more support for code generation. Notably, the experiment  performs the best by combing the training data of . The experimental results show that the concrete definition of  and the combination of it can effectively improve the model performance.
+
+To compare the capabilities of different code LLMs, we create a test set (denoted as ) by prompting the code LLM to generate  and translate it into the executable code. We check the correctness of each translated code with the test cases, denoted as Pass@1 of the universal code. Code-Llama-7B is fine-tuned on the Code Alpaca dataset and our dataset  separately. The results of fine-tuned Code-Llama models on  are shown in Table~. Our method  is more accurate in passing the test cases than the Code-Llama baselines, demonstrating its excellent code understanding and generation abilities. %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

@@ -1,0 +1,209 @@
+% Federated learning has emerged as a promising approach for collaborative machine learning across multiple devices while preserving data privacy. However, traditional federated learning frameworks often assume homogeneity among client models, which may not hold in real-world scenarios due to varying computational capabilities, network conditions, and data distributions. % This limitation has led to the development of model heterogeneous federated learning (MHFL), which aims to address the challenges associated with heterogeneity.  
+
+Model heterogeneous federated learning (MHFL) aims to address the challenges associated with heterogeneity in federated learning. Initial research in MHFL primarily concentrated on addressing heterogeneity in model architectures. Various approaches have been proposed to accommodate clients with different model architectures participating in a federated learning task. These methods typically involve techniques such as knowledge distillation~, mutual learning and split learning that can handle heterogeneous models. Knowledge distillation-based MHFL methods, such as FedMD~ and FedET~, involve the server aggregating the output logits of different clients' heterogeneous models on a public dataset to construct global logits. % Each client then calculates the distance between the global logits and the local logits of their local heterogeneous model on the same public data sample, using this as a distillation loss for training the local model.  Mutual learning-based MHFL, such as Deep Mutual Learning (DML) , PFML~ and FedLoRA , design a small homogeneous model and a large heterogeneous model in each client.  % These methods integrate mutual learning into personalized federated learning, aiming to enhance the performance of both the global and personalized heterogeneous models. Split learning-based MHFL approaches, such as FedClassAvg~ and CHFL , share a homogeneous classifier to improve model classification while personalizing the local feature extractor. 
+
+While previous works have mainly focused on computer vision scenarios, the literature has limitedly explored MHFL in LLMs. This gap motivates this study, which aims to explore MHFL in the context of LLMs.
+
+% Adapting large language models (LLMs)~ to downstream tasks typically involve the comprehensive fine-tuning of all model parameters, a process known as full fine-tuning. However, this approach can be prohibitively expensive, particularly for domain-specific tasks. To address this challenge, Parameter-Efficient Fine-Tuning (PEFT) methods  have been proposed. These methods efficiently adapt LLMs to specific domains or tasks by fine-tuning only a subset of model parameters while keeping the rest frozen.
+
+Parameter-Efficient Fine-Tuning (PEFT) methods  offer a direct solution to the issues of communication overhead and fine-tuning costs in federated learning (FL) for LLMs. A number of studies have built upon PEFT methods in the context of FL for LLMs, including FedPETuning~, Federated Adapter Tuning~, Federated Prompt Tuning , and FATE-LLM . For example, the FedPETuning  has demonstrated a significant reduction in communication overhead, reducing 1 to 2 orders of magnitude compared to full fine-tuning in the FL setting. These findings imply that FL clients, such as devices with limited storage capacity, can greatly benefit from PEFT methods. These methods enable the sharing of LLMs across different tasks while maintaining only a few parameters for each task, thereby reducing the storage requirement. By leveraging PEFT methods, FL clients can efficiently adapt LLMs to their specific needs while minimizing communication overhead and fine-tuning costs.  % Additionally, they found that PETuning methods can effectively reduce local model adaptation costs for clients in FL systems. We consider the federated learning setting, involving one server that owns an LLM  parameterized by  and  clients that each client  has an SLM  parameterized by . Each client owns a local private dataset  with  training samples, and all clients and the server share a public dataset . 
+
+The server and clients aim to collaboratively enhance the performance of the LLM and SLMs through federated learning without disclosing any private data. We assume that the  clients execute the same text generation task, but they may hold heterogeneous or homogeneous SLM models. The collaboration between clients and the server involves the following sub-procedures: 
+
+We consider the server , meaning that the server may try to recover the private data of clients from the information it observes.
+
+FedMKT solves the optimization problems formulated in Eq.(), Eq.(), and Eq.() in an efficient and privacy-preserving manner. We illustrate the workflow of FedMKT in Figure~ and elaborate on the associated training algorithm in Algorithm .
+
+% [htbp] % % % % \scriptsize% [1]% {}% {}% \Require  \\%     :  number of clients; \\%     : total number of rounds; \\%     : local number of rounds in the server; \\%     : local number of rounds in the client; \\%     % : the initialized global adapter of SLM ; \\%     % : the initialized adapter of  LLM ; \\%     : the learning rate of LLM ; \\%     : the learning rate of SLM .% \Ensure , ,,...,.%  %         \State %         \State .%         \State %          \State  from SLMs to LLM on .%         \State (<>).%         %          \State .%          \EndFor%         \State .%          \State .%          \State .%         \State .%         \State%         \State t%         %             \State %             %             \State .%             \EndFor%             \State .%             \State .%             \State Upload  to server.%         \EndFor%          \State%         \State //%         %             \State Receive LLM's  from server.%             \State  from LLM to SLM  on .%              \State %              \State (<>, <>).%             %              \State .%          \EndFor%         \State .%         \EndFor%     \EndFor % %  A significant challenge in aligning output logits distributions lies in the mismatch between tokenizers of different LLM and SLMs, exemplified by Bloom and LLaMa. Consider the sentence, "we utilize the dynamic programming approach to align tokens" as an example. Utilizing the Bloom tokenizer would segment it into the following tokens: . However, if the LLaMa tokenizer were used, the segmentation would be: . 
+
+To tackle this issue, we adopt dynamic programming techniques to promote robust alignment, as evidenced in studies . % Given that tokens produced by distinct tokenizers for the same sequence often exhibit minimal disparities, we employ a minimum edit distance (MinED) strategy. % Utilizing LLaMa2 and Bloom as illustrative examples, we initially establish an optimized vocabulary mapping table. This table leverages edit distance as a similarity metric to identify the closest counterpart in the Bloom vocabulary for each LLaMa2 token (for instance, finding 'utilize' as the closest match for 'util'). Subsequently, we tokenize a specified sentence utilizing both the LLaMa2 and Bloom tokenizers. To synchronize the tokenization outcomes, we implement a dynamic programming algorithm, which facilitates the determination of the optimal matching path. In scenarios where multiple tokens from LLaMa2 align with a single token in Bloom (e.g., 'util' and 'ize' aligning to 'utilize'), we appropriately handle these instances in accordance with the optimal vocabulary mapping. For more token alignment details, please refer to Appendix . Utilizing LLaMa2 and Bloom as illustrative examples, we establish an optimized vocabulary mapping table based on minimum edit distance (MinED). This mapping table identifies the closest Bloom token for each LLaMa2 token (e.g., 'utilize' for 'util'). We then tokenize a sentence using both tokenizers and apply a dynamic programming algorithm to determine the optimal matching path. When multiple LLaMa2 tokens align to a single Bloom token (e.g., 'util' and 'ize' aligning to 'utilize'), we handle them according to the mapping table. Please refer to Appendix  for more details.
+
+In FedMKT, a bidirectional token alignment process occurs before knowledge transfer between LLMs and SLMs. One the one hand, when clients transfer knowledge from their SLMs to the server's LLM, the server aligns SLM tokens to LLM tokens. On the other hand, when the server transfers knowledge from its LLM back to clients' SLMs, each client aligns LLM tokens to its SLM tokens.
+
+To transfer knowledge between the server and clients efficiently, we leverage LoRA to fine-tune the server's LLM and clients' SLMs. Specifically,  each client  inserts a small low-rank adapter parameterized by  into its local SLM. We denote client  local SLM with the added  as . Likewise, the server inserts a small low-rank adapter parameterized by  into its LLM . We denote the server's LLM  with the added  as . During the whole federated learning training process,  and  are trained, while  and  are frozen.
+
+Before transferring knowledge to the server, each client  trains its LoRA adapter  using its private dataset . Consequently, Eq.() can be reformulated as follows:
+
+where  is the task loss for training  of each client . The original model parameter  of client 's SLM is frozen during training.
+
+% The server conducts the knowledge transfer from SLM  of each client  to  through supervised fine-tuning and selective knowledge distillation based on a public dataset .
+
+Then, both the server and clients fine-tune their LoRA adapters based on a shared public dataset . We formulate the losses of fine-tuning  and  (denoted as  and ) as follows:
+
+where  is the cross-entropy loss; the model parameters  and  are frozen during fine-tuning. 
+
+% where the server-side LLM could potentially have a negative influence on the clients' SLMs, Next, the server and clients conduct selective knowledge transfer to each other. The motivation for applying selective knowledge transfer is that some clients' knowledge may adversely affect the performance of LLM on the server and vice versa in a heterogeneous environment. Therefore, it is critical to guarantee that the knowledge transferred between the server and clients is positive to the performance of LLM and SLMs. To this end, we propose a selective knowledge transfer strategy on both the server and client sides, termed . 
+
+% DualMinCE works as follows:  Subsequently, when knowledge needs to be transferred from SLMs to the LLM, we select the SLM exhibiting the minimum cross-entropy loss to effectively distill its knowledge into the LLM residing on the server. Conversely, when transferring knowledge from the LLM to SLMs, we only proceed with the distillation if the LLM's cross-entropy loss is lower than that of the SLMs. This ensures the most accurate and informative knowledge is distilled between the LLM and SLMs.% Particularly, for each sample  on the public dataset, we can calculate its cross-entropy loss on all client SLMs and the server LLM, and select the  client with the minimal cross-entropy loss: % % % k^{*} = \arg\min\limits_{k}{(l_0,...,l_k,..., l_K)} % % % where  is the cross-entropy loss computed on the LLM of the server, and  is the cross-entropy loss computed on the SLM of the client .
+
+DualMinCE aims to select knowledge that is positive to the performance of the server's LLM from clients and vice versa. Specifically,  when knowledge needs to be transferred from SLMs to the LLM, each client  computes a knowledge set  consisting of loss-logit pairs through its local model based on the public dataset .  Then, all  clients send their  to the server. By leveraging DualMinCE (see Algorithm  for detail), the server picks a logit  with the smallest loss from  and adds  to a selective knowledge set  if the loss  of   is smaller than the loss  computed through the server's local LLM based on   for each  in . 
+
+Next, the server leverages the knowledge distillation loss, denoted as , to fine-tune : % % %      ^f_{}(\omega;_p,\theta_1,\theta_2,...,\theta_K)  \\%      =_{x \sim _p} \ell_{}(f_{\psi+\omega}(x), &g_{\phi_{k^{*}}+\theta_{k^{*}}}(x))% % % % %      ^g_{}(\theta_k;_p,\psi+\omega) \\ %       = _{x \sim _p} \ell_{}(&g_{\phi_k+\theta_k}(x),f_{\psi+\omega}(x))% % 
+
+Likewise, each client  leverages DualMinCE to form its selective knowledge set  from the knowledge  sent from the server. Each client  leverages the following knowledge distillation loss to fine-tune its local model :
+
+Combining Eq.() and Eq.(), we reformulate the knowledge transfer from SLMs to LLM conducted on the server to enhance LLM as follows:
+
+Combining Eq.() and Eq.(), we reformulate the knowledge transfer from LLM to SLMs conducted on the clients to enhance SLMs as follows:
+
+where  is the hyperparameter that controls the weight of mutual knowledge transfer.
+
+We set up a federated learning scenario involving four clients and one server to evaluate the FedMKT using various publicly available LLMs and SLMs.
+
+. We evaluate FedMKT on one LLM (LLaMa2-7B ) in the server, four SLMs in the clients including GPT-2-xlarge (1.5B) , OPT-1.3B , Bloom-1.1B  and LLaMa2-1.3B .  In our experiments, we evaluate our framework in three distinct scenarios: ,  and . Table  details the setup for the LLM and SLMs in different settings.
+
+. We evaluate FedMKT comprehensively on 6 QA datasets and 2 instruction-following datasets. Specifically, for QA tasks, we use RTE , WTC ,  BoolQ , CommonsenseQA(CQA) , ARC-E , ARC-C  to evaluate FedMKT. As for instruction-following tasks, we evaluate FedMKT on S-NI , DialogSum . 
+
+.  We conduct a comparative analysis of FedMKT against the following baselines: .  % We evaluate the performance of fine-tuned LLM and SLMs on both QA datasets and instruction-following datasets.  For the QA datasets, we primarily use  as the evaluation metric, whereas for the instruction-following datasets, we primarily rely on .  % This approach allows us to comprehensively assess the models' capabilities across different tasks, providing a clear comparison of their performance.
+
+In the Heterogeneous setting, the server is deployed with a LLaMa2-7B model, and the 4 clients are deployed with a GPT-2-xlarge, a OPT-1.3B, a Bloom-1.1B, and a LLaMa2-1.3B, respectively. Table  reports the performance comparisons of FedMKT against baselines on 8 tasks. 
+
+Tables  show that FedMKT performs superior over Zero-Shot and Standalone on all clients' SLMs. Take the RTE dataset as an example,  % FedMKT-SLM demonstrates significant performance gains compared to both SLM-ZS and Standalone models across various SLMs.  FedMKT outperforms Zero-Shot by 34\% and Standalone by 7\% on the GPT-2-xlarge SLM; FedMKT surpasses Zero-Shot by 25\% and Standalone by 5\% on the OPT-1.3B SLM; FedMKT-SLM achieves a 17\% improvement over Zero-Shot and a 6\% improvement over Standalone on the Bloom-1.1B SLM; FedMKT-SLM outperforms Zero-Shot by 18\% and Standalone by 6\% on the LLaMa2-1.3B SLM. % In the DialogSum instruction-following dataset, FedMKT-SLM again demonstrates impressive results. When using the GPT-2-xlarge SLM, FedMKT-SLM outperforms SLM-ZS by 330\% and Standalone by 4\%. Similarly, with the OPT-1.3B SLM, FedMKT-SLM surpasses SLM-ZS by 227\% and Standalone by 6\%. In the Bloom-1.3B SLM, FedMKT-SLM achieves a 204\% improvement over SLM-ZS and a 14\% advantage over Standalone. Finally, with the LLaMa2-1.3B SLM, FedMKT-SLM outperforms SLM-ZS by 279\% and Standalone by 0.9\%. These empirical results demonstrate that, by leveraging FedMKT, SLMs are able to effectively leverage the knowledge transferred from the LLM, leading to enhanced model capabilities. 
+
+% As illustrated in Table , in comparison to both Zero-Shot and Centralized-LLM of LLaMa2-7B,  FedMKT-LLM surpasses the zero-shot performance of LLMs and rivals the fine-tuning performance of Centralized-LLM. For instance, in the RTE QA dataset, FedMKT-LLM outperforms Zero-Shot by 30\% and achieves a performance level that is nearly on par with Centralized-LLM, reaching approximately 96\% of its fine-tuning performance. 
+
+Table  also shows that FedMKT outperforms Zero-Shot and Centralized on the LLaMa2-7B of the server. For instance, on the RTE QA dataset, FedMKT outperforms Zero-Shot by 30\% and achieves a performance level that is nearly on par with Centralized, reaching approximately 96\% of its fine-tuning performance.  % Similarly, in the DialogSum instruction-following dataset, FedMKT-LLM outperforms LLM-ZS by a significant 185\% and achieves approximately 90\% of the fine-tuning performance of Centralized-LLM. This significant achievement signifies that FedMKT effectively facilitates the acquisition of knowledge from all clients by the server. 
+
+We conduct experiments with two Homogeneous settings, as shown in Table . The first setting (denoted as S1) involves one server-side LLaMa2-7B and four client-side LLaMa2-1.3B. The second setting (denoted as S2) involves one server-side LLaMa2-7B and four client-side OPT-1.3B.  % The SLMs of the four clients have the same model architecture.% To facilitate a comparison with FedAvg, we incorporated a FedAvg process involving all four clients within the FedMTK-SLM framework subsequent to mutual knowledge transfer. Note that the standalone score here represents the average score obtained from the four clients working independently.Table  reports the performance comparisons of FedMKT against baselines in the two Homogeneous settings. The top sub-table and the bottom sub-table compare the performance of FedMKT against baselines on the server's LLM and clients' SLMs, respectively.
+
+% The performance comparisons encompass both LLM and SLMs.  % Specifically, FedMTK-LLM denotes the performance exhibited by the LLaMa2-7B LLM  on the server using the FedMTK methodology. Similarly, FedMTK-SLM signifies the performance achieved by the SLMs deployed on the clients in the FedMTK framework.
+
+The top sub-table of Table  shows that FedMKT significantly outperforms Zero-Shot on the server's LLM (i.e., LLaMa2-7B) in the two Homogeneous settings. It also shows that FedMKT achieves comparable performance of the Centralized scenario, in which the server' LLM is fine-tuned using all clients' data and the public data combined.
+
+% surpasses the LLM's zero-shot performance and rivals Centralized-LLM's fine-tuning performance.
+
+The bottom sub-table of Table  shows that FedMTK performs better than the Zero-Shot, Standalone, and FedAvg due to the assistance of the server's LLM. For example, in the CQA dataset, FedMKT outperforms FedAvg by 4\% on the LLaMa2-1.3 SLM and by 5\% on the OPT-1.3B SLM, respectively. % Meanwhile, compared to both Zero-Shot-LLM and Centralized-LLM of LLaMa2-7B, FedMKT-LLM surpasses LLMs' zero-shot performance and rivals Centralized-LLM's fine-tuning performance.% % We conduct experiments with two One-to-One settings, as shown in Table . These configurations include a combination of server-side LLaMa2-7B with client-side LLaMa2-1.3B, and another configuration pairing server-side LLaMa2-7B with client-side OPT-1.3B. % Note that both configurations involve only one client.% % It's important to note that the number of clients is one.
+
+We evaluate FedMKT using two One-to-One settings. The first setting (denoted as S1) involves one server-side LLaMa2-7B LLM and one client-side LLaMa2-1.3B SLM, while the second setting (denoted as S2) involves one server-side LLaMa2-7B LLM and one client-side OPT-1.3B SLM.
+
+Table  reports the performance comparisons of FedMKT against baselines in the two One-to-One settings. The top and bottom sub-tables compare the performance of FedMKT against baselines on the server's LLM and clients' SLMs, respectively.
+
+% Table  reports the performance comparisons of FedMKT against other baselines in the two one-to-one settings. % The performance comparisons encompass both LLM and SLMs. The top sub-table of Table  shows that FedMKT notably surpasses Zero-Shot and rivals Centralized on the performance of the server's LLM. The bottom sub-table of Table  shows that FedMTK achieves superior SLM performance over Zero-Shot, Standalone, and LLM2SLM due to the assistance of LLM. These empirical results demonstrate the effectiveness of FedMKT in transferring knowledge between the LLM and SLMs. 
+
+% Meanwhile, compared to both Zero-Shot-LLM and Centralized-LLM of LLaMa2-7B, FedMKT-LLM surpasses LLMs' zero-shot performance and rivals Centralized-LLM's fine-tuning performance.%  We utilized the PEFT library with the following configurations: r=8, lora=16, lora=0.05. 
+
+ We set batch=4, used the AdamW optimizer with adam=0.9 and adam=0.95. The warmup was set to 0.008, the weight was 0.1, max was 1.0. The  was 0.9. The number of training rounds for all data is within 10 and the number of training rounds for different datasets may be different.
+
+ During distillation, the local epoch R was set to 1. The learning rates  were specified as 3e-5 for the datasets RTE/WIC/BoolQ/CQA/ARC-C/DialogSum/S-NI, and 2e-5 for ARC-E.
+
+ During training for the four clients, the local epoch E was set to 1. The learning rates  were as follows: for "OPT-1.3b", =3e-5; for "GPT-2-xlarge", =3e-4; for "Bloom-1b1", =3e-5; and for "LLaMa-2-1.3b", the same learning rates as for the LLM were used.
+
+For the datasets RTE/WIC/BoolQ/CQA/ARC-E/ARC-C/DialogSum, we randomly split the training data into five equal parts, with one part serving as the public dataset and the remaining four parts as private dataset for the four clients. All these datasets(including train, validate, test) were downloaded from HuggingFace. For the S-NI dataset, we first processed the data using minillm to retain samples with an output length greater than or equal to 11. From this processed data, we randomly selected 300 samples as the evaluation dataset. The remaining data was then split into five equal parts, with one part serving as the public dataset and the other four parts as private data for the four clients.
+
+For the datasets RTE/WIC/BoolQ/CQA/ARC-E/ARC-C/DialogSum were downloaded from HuggingFace and under Apache License, Version 2.0. For the S-NI dataset, it was from minillm and under MIT License.
+
+The experiments were conducted on machines equipped with either 4 Nvidia V100 32G or 8 Nvidia V100 32G GPUs.
+
+Recent research in federated large language models (LLMs) has primarily focused on enabling clients to fine-tune their locally deployed homogeneous LLMs collaboratively or on transferring knowledge from server-based LLMs to small language models (SLMs) at downstream clients. However, a significant gap remains in the simultaneous mutual enhancement of both the server's LLM and clients' SLMs. To bridge this gap, we propose FedMKT, a parameter-efficient federated mutual knowledge transfer framework for large and small language models. This framework is designed to adaptively transfer knowledge from the server's LLM to clients' SLMs while concurrently enriching the LLM with clients' unique domain insights. We facilitate token alignment using minimum edit distance (MinED) and then selective mutual knowledge transfer between client-side SLMs and a server-side LLM, aiming to collectively enhance their performance. Through extensive experiments across three distinct scenarios, we evaluate the effectiveness of FedMKT using various public LLMs and SLMs on a range of NLP text generation tasks. Empirical results demonstrate that FedMKT simultaneously boosts the performance of both LLMs and SLMs.
+
+% Empirical results demonstrate significant performance improvements in clients' SLMs with the aid of the LLM. Furthermore, the LLM optimized by FedMKT achieves a performance comparable to that achieved through direct fine-tuning based on clients' data, highlighting the effectiveness and adaptability of FedMKT.% With the increasing demand for privacy-preserving machine learning, federated learning has emerged as a promising solution. Previous research efforts in federated large language models(LLMs) have been predominantly directed toward enabling clients to fine-tune their locally deployed LLMs collaboratively.% This paradigm constrains that all clients have homogeneous LLMs. However, applying federated learning to LLMs remains challenging due to computational and model heterogeneity across different clients. % In this paper, we introduce FedMHLLM, a parameter-efficient model-heterogeneous federated LLM framework. FedMHLLM addresses the challenge of model heterogeneity across clients by leveraging heterogeneous small language models(SLMs) on each client and LLM in the server. We facilitate token alignment and then selective mutual knowledge transfer between client-side SLMs and a server-side LLM, aiming to collectively enhance their performance.% Through extensive experiments, we evaluate the effectiveness of FedMHLLM and demonstrate its competitiveness in terms of both LLM and SLM performance across a range of NLP text generation tasks. Our framework offers a novel approach to enable privacy-aware federated learning for heterogeneous LLMs, paving the way for future advancements in this domain. IntroductionChatgpttouvron2023llamakang2023groundingfan2023fatefig:fedmkt% \item % \item % \item  We conduct extensive experiments on various public LLM and SLMs and demonstrate the competitive performance of our FedMKT framework across a range of NLP text generation tasks.% \item . . FedMKT introduces a novel federated mutual knowledge transfer framework that enables effective knowledge transfer between an LLM deployed on the server and SLMs residing on clients. This framework fills the gap by simultaneously enhancing both the server's LLM and the clients' SLMs.
+
+Federated Mutual Knowledge Transfer Framework.  FedMKT implements a selective knowledge transfer mechanism that selectively distills knowledge from the most informative SLMs to the server's LLM and vice versa. Furthermore, it incorporates a token alignment technique using minimum edit distance (MinED) to address model heterogeneity between LLM and SLMs, ensuring efficient knowledge transfer.
+
+Selective Knowledge Transfer and Token Alignment.  % Through extensive experiments on various public LLMs and SLMs across NLP text generation tasks, FedMKT demonstrates significant performance enhancements in clients' SLMs with the aid of the server's LLM. Additionally, the LLM optimized by FedMKT achieves comparable performance to direct fine-tuning on clients' data, highlighting the effectiveness and adaptability of the proposed framework for grounding LLMs in real-world applications while maintaining data privacy protections. Extensive experiments conducted based on various publicly available LLMs and SLMs demonstrate the competitive performance of FedMKT across a wide range of NLP text-generation tasks. We evaluate FedMKT with heterogeneous, Homogeneous, and One-to-One settings. The results show that the performance of SLMs can be significantly enhanced with the help of the LLM, while the LLM can deliver comparable results to fine-tuning with all clients' data centralized. 
+
+Empirical Evaluation and Performance Enhancementwidth=0.98\linewidth./imgs/fedmkt_3.png   %  (Federated Mutual Knowledge Transfer for Large and Small Language Models Framework.)   Overview of the proposed FedMKT workflow. Each communication round of FedMKT involves 11 steps to fine-tune the server' LLM and clients' SLMs.   fig:fedmktRelated WorkModel Heterogeneous Federated Learninghinton2015distillingli2019fedmdcho2022heterogeneouszhang2018deepyang2021regularizedyi2023fedlorajang2022fedclassavgliu2022completelyFederated Learning for LLMshoulsby2019parameter,he2021towards,lester2021power,li2021prefix,hu2021lorazhang2022federatedcai2022autofednlpzhao2022reducefan2023fatezhang2022federatedThe Proposed FedMKT MethodBidirectional Token AlignmentSelective Mutual Knowledge Transfersec:token alignsec:selective knowledgesec:problemProblem Definitionsec:problem% Once the knowledge transfer from SLMs to LLM% is completed on the server,Each client  trains its SLM  using its private data . The objective is formulated as follows:
+
+    \min_{\phi_1,\phi_2,...,\phi_K} _1(\phi_1,\phi_2,...,\phi_K;\{_k\}_{k=1}^K)      Each client computes the output logits on  and securely uploads them to the server. Upon receiving output logits of all clients, the server computes the distillation loss by comparing these client logits with the output logits produced by its own LLM on . The objective can be formulated as follows:
+
+    The server aims to transfer knowledge from the clients' SLMs  to its owned LLM . 
+
+        \min_{\psi} _2(\psi; \mathcal D_{p}, {\phi_1,\phi_2,...,\phi_K})      The server dispatches the LLM's output logits on  to all the clients. Subsequently, the clients compute the distillation loss by comparing LLM output logits with SLMs' output logits on . The objective can be formulated as follows:
+
+The clients aim to transfer knowledge from LLM  to enhance their SLMs. 
+
+        \min_{\phi_1,\phi_2,...,\phi_K} _3(\phi_1,\phi_2,...,\phi_K; \mathcal D_{p}, { \psi})      semi-honesteq:hfleq:mkt-2eq:mkt-3fig:fedmktalg:fedmkt% \scriptsizeFedMKTalg:fedmkt  \\     :  number of clients; \\     : total number of communication rounds; \\     : local number of rounds in the server; \\     : local number of rounds in the client; \\     % : the initialized global adapter of SLM ; \\% : the initialized adapter of  LLM ; \\     : the learning rate of LLM ; \\     : the learning rate of SLM .
+
+ , ,,...,.
+
+ //     .
+
+% \State  from SLMs to LLM.
+
+ .
+
+ .
+
+          .
+
+ Compute  based on .
+
+ .
+
+ t          .              Compute  based on .
+
+            % \State Upload  to the server.  Upload  to the server
+
+         % \State Receive LLM's  from server. from LLM to SLMs.
+
+% \State   , , ).              .           .
+
+\algorithmicrequire\textbf\algorithmicensure\textbf in communication round Token Alignment// knowledge transfer based on  and .each epoch each client  (in parallel)// local fine-tuning based on .each local epoch ClientUpdate2():each client  (in parallel)Token Alignment // knowledge transfer based on  and .each local epoch % \scriptsizeDualMinCEalg:dualmince  \\     : the public dataset; \\     : either the SLM  of client  or the LLM  of the server; \\     : loss-logit pairs passed from either the server or clients.
+
+ . % \State return \algorithmicrequire\textbf\algorithmicensure\textbf initialize an empty set of selective knowledge.each  in Bidirectional Token Alignmentsec:token alignwan2024knowledge,fu2023specializingsec:appendix-MinEDSelective Mutual Knowledge Transfer Between LLM and SLMssec:selective knowledgeeq:hfl
+
+     _1(\theta_1,\theta_2,...,\theta_K;\{_k\}_{k=1}^K) \\ =      {K}\sum_{k=1}^K _{(x,y) \sim _k} \ell_{}(&g_{\phi_k+\theta_k}(x), y) aligned
+
+     ^f_{}(\omega;_p) &= _{(x,y) \sim _p}\ell_{}(f_{\psi+\omega}(x), y) aligned
+
+     ^g_{}(\theta_k;_p)&= _{(x,y) \sim _p} \ell_{}(g_{\phi_k+\theta_k}(x),y) alignedDualMinCEalg:dualmince
+
+     ^f_{}(\omega;}_0) = &_{(x,p) \sim }_0} \ell_{}(f_{\psi+\omega}(x), p) aligned
+
+     ^g_{}(\theta_k;}_k) = &_{(x,p) \sim }_k} \ell_{}(g_{\phi_k+\theta_k}(x),p) alignedeq:mft-feq:mkd-f
+
+   _2 &= \lambda _{}^f + (1 - \lambda )_{}^f\\ alignedeq:mft-geq:mkd-g
+
+    _3 & ={K}\sum_{k=1}^K (\lambda  _{}^g + (1 - \lambda) _{}^g) aligned\tabcolsep3.2ptThe five different settings we utilize to evaluate FedMKT.tab: model setting\tabcolsep3.2pt % Heterogeneous Setting Performance Comparison. The setup includes a combination of server-side LLaMa2-7B LLM with four client-side SLMs . Note that all the SLMs are heterogeneous. Method Performance Comparison in \textbf. We evaluate FedMKT with 8 different tasks. In all the 8 tasks, the server is deployed with a LLaMa2-7B model, and the 4 clients are deployed with a GPT-2-xlarge, a OPT-1.3B, a Bloom-1.1B, and a LLaMa2-1.3B, respectively. The '-' indicates a method does not apply to the corresponding participant (either the server or the client).tab:HeterogeneousExperimentsSetupModelstouvron2023llamaradford2019languagezhang2022optscao2022bloomxia2023shearedHeterogeneousHomogeneousOne-to-Onetab: model settingDatasetswang2019supergluewang2019superglueclark2019boolqtalmor2018commonsenseqaclark2018thinkclark2018thinkwang2022benchmarkingchen2021dialogsumBaselinesCentralized, in which the server's LLM is fine-tuned locally using the datasets combining private datasets of involved clients and the public dataset. In the One-to-One setting, the data of one client and the public data are used to fine-tune the server's LLM, whereas in other settings, the data of all four clients and the public data are used to fine-tune the LLM;      Zero-Shot, representing the zero-shot capabilities of LLM or SLMs (without fine-tuning);      Standalone, in which each client independently fine-tunes its local SLM using its private dataset;     FedAvg, representing the standard federated averaging algorithm. FedAvg is only used in homogeneous settings because it requires all clients' models have the same architecture.     LLM2SLM, representing FedMKT involving one server with an LLM and one client with an SLM. The LLM is not updated and is used to transfer knowledge to SLM. LLM2SLM is only used in the One-to-One setting.     % \item LLM2SLM, where the LLM is not updated in the FedMKT and is LLM only used to transfer knowledge to SLM in the FedMKT. It is only used in the SLM comparisons of the  One-to-One setting. Evaluation MetricsAccuracyRouge-LEvaluation on Heterogeneous Settingtab:Heterogeneoustab:Heterogeneoustab:HeterogeneousEvaluation on Homogeneous Settingtab: model settingtab:Homogeneoustab:Homogeneoustab:HomogeneousEvaluation on One-to-One Settingtab:one-to-onetab:one-to-onetab:one-to-oneConclusionsLimitationsli2019fedmd,cho2022heterogeneouslatex/refFedMKT Workflowsec:appendix-workflowIn the -th communication round, the  clients train their respective LoRA adapters using their private data. This step allows the clients to adapt their models to their specific data distributions.
+
+After local training, each client  computes a knowledge set  consisting of loss-logit pairs through its local model based on the public dataset.
+
+Each client  upload  to the server. 
+
+On the server side, token alignment is performed from the SLMs to the LLM, guaranteeing compatibility between the SLMs and the LLM.
+
+On the server side, knowledge is selected from the SLMs to the LLM according to Algorithm .
+
+alg:dualminceOn the server side, knowledge is transferred from the SLMs to the LLM based on the selected knowledge.
+
+Once the knowledge transfer from SLMs to LLM is completed on the server, the server then computes a knowledge set  consisting of loss-logit pairs through LLM based on the public dataset.
+
+The server disseminates  to all the clients.
+
+On the client side, the token alignment flow reverses, and token alignment is performed from the LLM to SLMs.
+
+On the client side, knowledge is selected from the LLM to each client SLM according to Algorithm .
+
+alg:dualminceOn the client side, knowledge is transferred from the LLM to each client SLM based on the selected knowledge.
+
+Implementation Details of Token Alignmentsec:appendix-MinEDBuilding an Optimal Vocabulary Mapping Table:
+
+For each token in the LLaMa2 vocabulary, iterate through the Bloom vocabulary.
+
+   Use edit distance as a similarity measure to find the closest token in the Bloom vocabulary to the token in the LLaMa2 vocabulary.
+
+   If there are multiple token with the same minimum edit distance, choose the one with the lexicographically smallest order.
+
+   Save this mapping relationship in the optimal vocabulary mapping table.
+
+   Tokenization and Alignment:
+
+ Tokenize the sentence "we utilize the dynamic programming approach to align tokens" using both the LLaMa2 and Bloom tokenizers.
+
+  To align the two tokenization results and determine the optimal matching path, we utilize a dynamic programming algorithm. As an illustration, consider the tokenization outputs from LLaMa2 and Bloom. LLaMa2's tokenization yields: . In contrast, Bloom's tokenization produces: . In this instance, seven terms from LLaMa2 align perfectly with those from Bloom, such as "we" and "dynamic". Notably, the LLaMa2 tokens 'util' and 'ize' collectively map to the single Bloom token 'utilize'. In scenarios where multiple tokens align to one, like the 2-to-1 case of 'util' and 'ize' mapping to 'utilize', we consider 'utilize' as a match for 'util' based on an optimal vocabulary mapping.
+
+Logits Mapping:
+
+   Iterate through each token  in the Bloom tokenization result.
+
+  For each , check if it uniquely matches a token  in the LLaMa2 tokenization result.
+
+   If  uniquely matches , then for each token  in the Top- predicted token of  from LLaMa2 and its corresponding logit : Find the position  in the Bloom vocabulary that corresponds to  using the optimal vocabulary mapping table. If  has not been assigned a value before, copy  to the corresponding position in the Bloom logits distribution matrix .
+
+   If  does not have a unique match, generate one-hot logits for .    Processing the Results:
+
+Ultimately, each token  in Bloom will have a corresponding logits distribution matrix .
+
+   These logits can be directly used for subsequent training in the Bloom model.
+
+   Computation and Communication Complexitysec:appendix-ComputationMore on Experimental Detailssec:appendix-ExperimentalHyperparameter SettingsLoRA Parameters.peftCommon Parameters for LLM and SLMs.LLM Parameters.SLM Parameters.Data Splittinglhoest-etal-2021-datasetsgu2023minillmDataset Licenseslhoest-etal-2021-datasetsgu2023minillmMachine Configuration

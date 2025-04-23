@@ -1,0 +1,301 @@
+Bidirectional chaining is a reasoning strategy that combines both forward and backward chaining to facilitate the inference process. It involves simultaneous exploration in both directions, starting from the available facts and working forward to derive new conclusions, while also starting from the goal and working backward to decompose the goal into sub-goals using applicable rules. In our research, we define the existence of multiple deductions or abductions as a confusion state since we aim to ensure a depth-first searching process, thereby reducing the number of LLM calls. In a depth-first search, when faced with multiple deductions or abductions at a single reasoning step, the challenge lies in selecting the most suitable deduction to continue the chaining process. Therefore, we describe this challenge as a confusion in the reasoning process. As the term confusion signifies the need to resolve this ambiguity and make decisions to continue the reasoning chain effectively.
+
+Figure  illustrates the application of bidirectional chaining in proving a hypothesis using a set of premises. Initially, forward chaining is employed to derive more definite facts and update the premises. In the forward chaining process, deductions are made based on selected premises, such as Premises 3 and 4 leading to the deduction "Tiger eats the squirrel", and Premises 1 and 5 establishing the deduction "Mouse likes squirrel". However, as multiple deductions are obtained, further forward chaining becomes confusing on which deduction to select to continue the chaining process. Therefore, the Confusion Check module triggers a switch to backward chaining. In the backward chaining phase, both Premise 7 and Premise 8 support the consequence of the hypothesis "Someone is green". However, Premise 8's conditions can all be proven using the intermediate deductions obtained from forward chaining. As a result, the hypothesis is successfully proved using bi-directional chaining.
+
+To enable applying bidirectioanl chaining for text-based reasoning, we introduce six LLM-based modules: Fact Identification, Rule Selection, Logic Deduction, Logic Abduction, Fact Check, and Confusion Check. Each module is implemented by providing instructions with relevant in-context demonstrations to an LLM (see Appendix  for details). We describe these modules and then proceed to the full algorithm.
+
+ Given the facts  from the premises and the hypothesis , the Fact Identification module is responsible for identifying relevant facts  that contribute to proving the hypothesis.
+
+Given a set of rules  from the premises and a hypothesis , the Rule Selection module in Forward Chaining identifies a subset of rules  such that the condition of the rule entails with the facts  and the consequent of the rule entails with the hypothesis consequent . If a rule exists that satisfies these conditions, it is returned as it serves as a bridge between the known facts and the hypothesis, facilitating the concatenation of forward and backward chaining. However, if no such rule is found, only the rules that can be entailed by the known facts are returned.  % These rules are then used to perform logical deduction with the facts, allowing for further progress in forward chaining. The Rule Selection module in Backward Chaining identifies a subset of rules  such that the consequent of the rule unifies with the consequent of the hypothesis .  % These selected rules are then used for conducting logical abduction with the hypothesis to determine an updated hypothesis with new consequent to prove.  The Logic Deduction module focuses on deductive reasoning, starting from known facts  and the deductive rules  to derive a set of new conclusions .  The Logic Abduction module, on the other hand, deals with abductive reasoning. It aims to generate plausible explanations  that best lead to the hypothesis consequent  according to the abductive rules .  The generated explanations are then treated as new consequences that need to be proven or validated.
+
+Given the facts  from the premises, the Fact Check module verifies if the hypothesis  entails (in which case the hypothesis is proved) or contradicts (in which case the hypothesis is disproved) with the facts. If no such fact can be found, then the truth of  remains unknown.
+
+ The Confusion Check module determines the moment to switch between forward and backward chaining.  We define a situation where confusion happens when executing the uni-directional chaining at a single step, multiple deductions (in forward chaining) or abductions (in backward chaining) emerge. % Given the deduction results  or the abduction results , % if each reasoning step produces consistent deduction or induction results after applying the selected rules, we continue reasoning in that direction. % However, if different deduction or induction results arise at each step, it suggests that the system may be confused in selecting which rule to continue reasoning. In such cases, reasoning is paused, and the other direction of reasoning is allowed to continue a few steps forward to provide more information to assist in determining the reasoning path in the current reasoning direction. % Thus, bidirectional reasoning can continuously switch between forward and backward chaining until a rule is found that connects the consequent of forward chaining with the plausible explanation of backward chaining or until the maximum step limit is reached.  In the bidirectional chaining process, if each reasoning step produces consistent deduction  or abduction results  based on the selected rules, the reasoning continues in that direction. However, if different results emerge at each step, it indicates that the system may be confused in selecting the appropriate rule to proceed with. In such cases, the reasoning is temporarily paused, and the other direction of reasoning is allowed to continue for a few steps to gather additional information that can aid in determining the reasoning path in the current direction. Bidirectional chaining thus involves continuously switching between forward and backward chaining until a rule is found that connects the consequent of forward chaining with a plausible explanation derived from backward chaining, or until the maximum step limit is reached. 
+
+Algorithm  provides a high-level description of how the six LLM modules described earlier can be integrated with bidirectional chaining to enable text-based logical reasoning (the function calls corresponding to LLM modules are color-coded).
+
+Bi-Chainer can be understood as a bidirectional depth-first algorithm that focuses on reasoning with premises. It employs a depth-first search approach and switches between reasoning directions when faced with multiple branching options.   % This bidirectional approach allows Bi-Chainer to utilize intermediate reasoning results from the other reasoning direction as guidance, aiding in accurate decision-making among the available choices. Bi-Chainer takes a set of premises , a Hypothesis  with condition  and consequent , and a depth limit  as input.  The algorithm starts by using the  module to find facts  that are essential for proving the hypothesis. It then employs forward chaining to iteratively expand the determinate facts that are associated with and supportive of the hypothesis. 
+
+During Forward Chaining, the Rule Selection module selects rules  from  that are consistent with the identified facts . The Logical Deduction module then applies these rules and facts to derive new conclusions , which are subsequently added to the existing premises.  The  module then verifies whether the hypothesis can be proved or disproved using the facts. If this is the case, then the algorithm stops and returns the result.  % Then the  module checks if inconsistencies are found in the deuced results, which indicates that further deductions based on these conclusions would result in a large number of branching paths, deviating from the depth-first approach. In such cases, the algorithm switches the reasoning mode to Backward chaining.  If not the case, the  module examines the deduced results to identify any inconsistencies. If different deduction results emerge at each step, it suggests that further deductions based on these conclusions would lead to a significant number of branching paths, deviating from the depth-first approach. In such situations, the algorithm switches the reasoning mode from Forward Chaining to Backward Chaining.  % This switch allows the algorithm to explore alternative reasoning paths and potentially resolve the confusion or uncertainty that arose during the Forward Chaining process. Similarly, during Backward Chaining, the  module identifies rules  from  that unifies with the hypothesis consequent. The  module then applies these rules to derive the plausible explanations , which are then updated as the new consequent to be proved.  The  module verifies whether the updated hypothesis can be proved or disproved using the facts enriched by Forward Chaining. On the other hand, the  module examines any inconsistencies are present in  to determine if a change in the reasoning mode is necessary.
+
+We compare against the following four baselines.
+
+%  Standard prompting utilizes answer-only demonstrations to assist the model in learning the associations between input and desired output.  directly prompts LLM to output labels and proofs in an end-to-end manner, showcasing the lower bound of LLM's capabilities. 
+
+% enhances standard prompting by incorporating a chain of step-by-step indeterminate inferences before the final answer within the in-context prompt. In our work, the indeterminate inferences align with the corresponding step-by-step proof. adopts a step-by-step problem-solving approach, generating explanations before providing the final answer. In our work, the indeterminate explanations are the corresponding step-by-step proof.
+
+ is a forward modular reasoning framework.  SI starts from the facts and rules, it iteratively calls selection and inference, until the goal can be proved or disproved.
+
+% The new deduction is then added back to the existing set of rules for the next selection stage.  tackles multi-step reasoning using backward chaining.  LAMBADA starts from the goal, it recursively selects rules that share the same consequent as the goal and then decomposes the goal into sub-goals based on the antecedent of the selected rules. The recursive selection and decomposition process continues until the sub-goals can be proved or disproved based on the given facts.
+
+We experiment with four challenging logical reasoning datasets outlined below.
+
+ is a commonly used synthetic dataset for testing logical reasoning.  We use the ProofWriter OWA dataset of proof depth 0, 1, 2, 3 and 5. % Each example consists of a theory and a goal, where the theory comprises premises in natural language.  The task is to determine the provability of the hypothesis as Proved, Disproved, or Unknown based on the given premises. Our reported results include two sets: ProofWriter-PUD, containing all proven examples, and ProofWriter-PD, excluding examples labeled as Unknown. In line with the methodology outlined by , we employ the first 1000 examples from the test set for our analysis.
+
+ is a challenging expert-written dataset with complex first-order logic reasoning. The problems are mostly aligned with real-world knowledge and use highly natural wordings.  We use the entire FOLIO test set for evaluation, consisting of 204 examples.
+
+%  is a challenging logical reasoning task from the BigBench (Srivastava et al., 2022) collaborative benchmark. The problems are mostly about deducing the order of a sequence of objects from a minimal set of conditions. We use the full test set consisting of 300 examples. is a challenging dataset that focuses on investigating the analytical reasoning of text. The questions are collected from the Law School Admission Test from 1991 to 2016. We use the entire test set of 230 multiple choice questions. AR-LSAT is particularly challenging, with state-of-the-art models only achieving performance slightly better than random guessing .
+
+ modifies from ProofWriter where the synthetically generated premises are rewritten by crowdworkers to increase diversity and naturalness. Thus, we can surpass the evaluation of reasoning limited to templatic expressions. The provided examples necessitate proof depths of up to 5, and the corresponding labels are Proved, Disproved, or Unknown.  We employ the first 200 examples of the test set for evaluation.
+
+% We convert all examples into a standard multiplechoice format, comprising a problem statement, a question, and potential answers, as shown in Figure 2. % We also select 1-5 examples from the training set of each dataset as in-context examples. Detailed data statistics are in Appendix B. The overall label prediction accuracy results across various reasoning frameworks are reported in Figure  (a)-(e).  The Bi-Chainer framework, employing bi-directional chaining techniques, is observed to significantly outperform both the foundational reasoning models such as the standard and CoT frameworks, and the more advanced,  modular reasoning systems such as the SI and LAMBADA frameworks. % The SI framework, which relies on a forward-chaining approach, and the LAMBADA framework, which utilizes a backward-chaining strategy, are both designed to improve reasoning by breaking down complex tasks into manageable modular components. However, the Bi-Chainer framework's bi-directional chaining methodology, which likely integrates both forward and backward chaining logic, demonstrates remarkable relative improvements in label prediction accuracy.  In the evaluation of the ProofWriter-PUD dataset at a reasoning depth of 5, the comparative analysis reveals that Bi-Chainer achieves a relative improvement of 8.9\% over the SI framework. Against the LAMBADA framework, Bi-Chainer maintains a strong lead with a 6.3\% relative improvement.  Moreover, the FOLIO dataset, which presents more difficult real-world reasoning challenges, also reflects the Bi-Chainer framework's superior performance. Here, Bi-Chainer records a relative improvement of 14.1\% when compared to the SI framework. Against the backward-chaining LAMBADA framework, Bi-Chainer again prevails with a relative improvement of 6.6\%.
+
+In the context of the AR-LSAT dataset, which involves complex analytical reasoning, the modular reasoning frameworks SI and LAMBADA exhibit lower performance compared to CoT. On the other hand, Bi-Chainer demonstrates a relative increase of 8.5\% in performance compared to CoT. In ParaRules, the introduction of naturalness and diversity through paraphrasing might inadvertently introduce ambiguity of the original premises, resulting in a decrease in the accuracy of label prediction compared to the ProofWriter dataset. However, Bi-Chainer demonstrates a notable relative improvement of 9.1\% over the SI framework and 5.9\% over the LAMBADA framework.  This consistent outperformance across diverse datasets indicates the adaptability and generalization strength of the Bi-Chainer framework's reasoning mechanisms.  % Figure  (a)-(b) demonstrates a performance disparity among different reasoning frameworks when handling datasets with or without Unknown cases. To gain deeper insights into the inherent biases of each method, we provide detailed confusion matrices in Appendix X. % These substantial gains highlight the strengths of Bi-Chainer's bidirectional reasoning methodology. By combining proactive premise exploration from forward chaining with goal-driven hypothesis testing from backward chaining, Bi-Chainer effectively selects the most relevant premises for the target hypothesis. This dual strategy streamlines the inferential process and enhances prediction accuracy.% As well as improving upon most baselines quantitatively, the Bi-Chainer framework also has additional qualitative benefits: (1) it improves the accuracy of intermediate proof steps, and (2) it is able to reduce the number of inference calls. We will now discuss each of these in turn.% In addition to achieving quantitative improvements over most baseline methods, the Bi-Chainer framework also offers qualitative advantages. (1) It enhances the accuracy of intermediate proof steps, ensuring that the reasoning process produces more correct and reliable results at each stage. % (2) The Bi-Chainer framework reduces the number of inference calls required during the reasoning process. % % By leveraging bidirectional reasoning to incorporate intermediate results from other-side as guidance, Bi-Chainer minimizes the need for unnecessary and redundant inference steps. We will now discuss each of these in turn.
+
+To validate whether each reasoning framework is susceptible to hallucinations, which involve correct final label predictions but incorrect intermediate steps, we conduct an assessment of the proof accuracy.  We randomly selected separate sets of 50 examples from Depth-5 of the ProofWriter-PUD dataset where each reasoning framework predicted the label correctly and manually verified if the proof chain is correct or not.  % The results are reported in Figure .% Since there is no clear reasoning trace available for unknown examples, we constructed the reasoning proofs by considering all possible facts and rules to eliminate the possibility of being proved or disproved. In each step, we compared the facts, rules, and resulting conclusions utilized in the reasoning process to corresponding steps in the reference reasoning path. A proof chain is considered to be correct if these elements are consistent with each other. The proof accuracy results are reported in Figure . 
+
+We observe that different reasoning frameworks demonstrate varying levels of logical reasoning hallucinations in different cases. In general, modular reasoning frameworks, including SI, Lambada, and Bi-Chainer, are less affected by implicit patterns in language models and achieve higher proof accuracy compared to direct proof generation frameworks like CoT. CoT has an average proof accuracy of 68\%, while SI achieves 78\%. Lambada demonstrates an impressive proof accuracy of 94\%, and Bi-Chainer surpasses all with the highest average proof accuracy of 98\%. Specifically, we observe that whenever reasoning frameworks predict Proved or Disproved, the prediction is mostly correct. The accuracy is slightly more in cases where the prediction is Disproved. We believe this is because in cases where the result is Disproved, the reasoning path of the model typically involves accurately identifying contradictions or inconsistencies, thereby reducing hallucinatory reasoning.
+
+Moreover, in the case of unknown examples, forward chaining frameworks such as CoT and SI face difficulties in accurately determining the correct reasoning path, achieving relatively low accuracies of 52\% and 65\%, respectively.  % The primary challenge lies in the necessity to consider all potential facts and rules in order to eliminate the possibility of being proven or disproven.% Unfortunately, these models tend to prematurely conclude Unknown in the intermediate process, assuming there is no additional supporting information available. This premature conclusion leads to the generation of hallucinations. In contrast, the Lambada framework uses backward chaining to capture goal-oriented premises, leading to a significant improvement in achieving 87\% accuracy for unknown cases. On the other hand, the Bi-Chainer framework employs bidirectional chaining to assist premise selection under the guidance of other side's intermediate reasoning results, resulting in an impressive accuracy of 96\%.
+
+In practice, generated reasoning paths often exhibit partial correctness, with errors occurring during the intermediate reasoning process. These errors are mainly attributed to incorrect premise selection, as large models possess powerful single-step reasoning capabilities. To assess the extent of partially correct reasoning, we measure the precision and recall of unique premises extracted from the generated proof that are also present in the reference reasoning path. The results are presented in Figure . % We observe that different reasoning frameworks exhibit different failure modes during the reasoning process, which in turn affect the performance of precision and recall. Here, we provide a brief explanation of the failure modes of each method. We provide the detailed analysis of failure modes in the next section.  In the case of the CoT method, it heavily relies on internal knowledge and rules within the model to generate proofs, resulting in a limited selection of premises. Consequently, the method exhibits higher recall values (around 5.3\% higher) than precision values. 
+
+On the contrary, the SI method requires considering all available facts and rules that can be used for deduction at each step of the reasoning process. This leads to a larger selection of premises in the reasoning process, resulting in lower recall values (around 3.6\% lower) compared to precision values.  While most of the reasoning paths in Lambada are correct, in situations where there are numerous and complex facts and rules, there may be a process of error correction. Consequently, the selection of premises in the proof becomes more diverse, leading to lower recall values (around 2.3\% lower) compared to precision values. In contrast, the Bi-Chainer method excels in handling scenarios with a large number of complex facts and rules. It leverages the guidance provided by the forward chaining process, utilizing intermediate results to guide the backward chaining. This approach mitigates the occurrence of errors and the need for subsequent corrections, resulting in both high recall and precision values.
+
+% % As mentioned previously, SI, Lambda, and Bi-Chainer are all modular reasoning frameworks that rely on a selection module to select the relevant facts and rules at each step of the reasoning process.% Considering that the underlying language model proficients in single-step reasoning, the key to improving reasoning accuracy lies in providing the selection module with a small and precise search space. % % By narrowing down the search space to the most relevant information, the selection module can effectively guide the reasoning process and enhance overall accuracy. % However, this selection process often involves a combinatorial search.% As new inferences are added to the theory, the search space for selecting the right combination of facts and rules grows larger with each iteration of the algorithm. % This expansion of the search space can lead to suboptimal choices or overlook crucial facts and rules, leading to incorrect or incomplete proofs, especially when dealing with deep levels of proof.% In SI, the selection module selects the appropriate subset of facts and rules to apply during the reasoning process. However, this selection process often involves a combinatorial search, which can be computationally expensive and time-consuming% 
+
+Another advantage of Bi-Chainer is its efficiency compared to other modular reasoning frameworks, such as SI and Lambada, which often require multiple LLM inference calls per example. In Figure , we compare the average number of LLM calls per example for our datasets. % Our findings reveal that Bi-Chainer demonstrates a greater improvement on the FOLIO dataset compared to the Proof Writer dataset.  For the ProofWriter dataset, Bi-Chainer requires 14.25 LLM calls, which is 1.12 times fewer than Lambada and 1.36 times fewer than SI. In the case of the FOLIO dataset, which has a limited number of premises, Bi-Chainer requires 9.22 LLM calls, exhibiting 1.18 times fewer calls than Lambada and 1.89 times fewer calls than SI. However, the AR-LSAT dataset poses a different challenge as it contains five options per question. This requires more LLM calls for evaluating each option, resulting in 26.35 calls for Bi-Chainer. Despite this, Bi-Chainer still reduces LLM calls by 1.12 times compared to SI and 1.44 times compared to Lambada. As for the ParaRules dataset, the presence of paraphrased premises increases the difficulty of accurately selecting the relevant premises. Consequently, the number of LLM calls for ParaRules exhibits a decrease compared to the ProofWriter dataset, with Bi-Chainer requiring 11.78 calls.
+
+% We think the plausible reasoning is that, the Proof Writer dataset is completely synthetically generated, with relatively short sentences, allows SI and Lambada methods to swiftly identify the correct reasoning path, resulting in a relatively lower number of LLM inference calls. In contrast, the FOLIO dataset is an expert-written dataset with complex logical relationships. The premises in FOLIO exhibit intricate logical dependencies and require more intricate reasoning steps. Consequently, other modular reasoning methods necessitate a higher number of LLM inference calls to successfully navigate the complex reasoning tasks and arrive at the correct reasoning path and answer. The advantages offered by our Bi-Chainer method are particularly pronounced in this context.Figure  (a)-(b) demonstrates a performance disparity among different reasoning frameworks when handling datasets with or without Unknown cases. To gain deeper insights into the inherent biases of each method, we provide detailed confusion matrices in Figure . The results reveal that Bi-Chainer consistently outperforms other reasoning frameworks across all Proved, Disproved, and Unknown cases, indicating its ability to achieve accurate and well-balanced predictions. In contrast, CoT exhibits a noticeable bias in predicting Unknown labels, with 24\% of Proved cases and 39\% of Disproved cases being misclassified as Unknown. Consequently, in the absence of unknown cases, the CoT method experiences a decline in model accuracy, while the other methods show an improvement.
+
+Furthermore, we observe that forward chaining is particularly effective in handling Proved cases, while backward chaining demonstrates a more significant improvement in handling Disproved cases.  Compared to CoT, the Forward chaining-based SI method shows a relative improvement of 29\% for Proved cases and 28\% for Disproved cases. The backward chaining-based Lambada method demonstrates a relative improvement of 31\% for Proved cases and an impressive relative improvement of 47\% for Disproved cases, which is 1.7 times higher than the improvement achieved by the SI method.  The Bi-Chainer method, which incorporates bidirectional reasoning, combines the advantages of forward chaining that aligns with the natural flow of logical order and backward chaining that focuses on goal-oriented reasoning. It effectively addresses situations of uncertainty in one-directional reasoning by timely incorporating intermediate results from the other side as guidance. This enhances the probability of selecting accurate premises for reasoning. Consequently, the Bi-Chainer method achieves a further relative improvement of 39\% in Proved cases compared to CoT, and a relative improvement of 54\% in Disproved cases.
+
+ CoT tends to rely heavily on its internal knowledge and rules during the reasoning process, disregarding the externally provided facts and rules. 
+
+ In complex scenarios where multiple steps of reasoning or indirect relationships are involved, CoT tends to focus on surface-level connections and fails to engage in deep reasoning. 
+
+ SI fails to effectively identify and utilize the premise information relevant to validating the hypothesis, leading to excessive processing and reasoning with all available premises, including those that do not contribute to the verification process. This redundancy and unnecessary computation reduce the efficiency and accuracy of SI's reasoning.
+
+% % {%   colback=gray!5,%   colframe=gray!40,%   coltitle=black,%   title=,%   fonttitle=\bfseries,%   sharp corners,%   boxrule=0.5pt,%   enhanced,%   left=2mm,  %   right=2mm, %   top=2mm, %   bottom=2mm,% }% % Hypothesis: % The cat is big.% Premises:% 1: The bald eagle chases the cat.% 2: The bald eagle chases the dog.% 3: The bald eagle does not eat the cat.% 4: The bald eagle eats the dog.% 5: The cat does not chase the bald eagle.% 6: The cat eats the bald eagle.% 7: The cat is young.% 8: The cat sees the bald eagle.% 9: The cat sees the tiger.% 10: The dog chases the cat.% 11: The dog eats the bald eagle.% 12: The dog is blue.% 13: The tiger chases the bald eagle.% 14: The tiger chases the cat.% 15: If something is young then it does not chase the cat.% 16: If the cat chases the tiger then the tiger is nice.% 17: Nice things are big.% 18: If something chases the dog and the dog eats the bald eagle then it is nice.% 19: If something is big and it chases the cat then the cat chases the dog.% SI reasoning steps:% Step 1: Analyze Premise 7: The cat is young. and Premise 15 If something is young then it does not chase the cat. % Step 2: We can infer that the cat does not chase the cat. %  LAMBADA fails to accurately determine the appropriate rule for the subsequent inference step when multiple rules unify with the consequent of the goal statement. As a result of choosing the wrong rule, the model was unable to validate the premise condition, resulting in a wrong conclusion.
+
+SI framework iteratively calls the selection and inference module. 
+
+LAMBADA employs backward chaining with four modules: Fact Check, Rule Selection, Goal Decomposition, and Sign Agreement. We add instructions for LAMBADA to align with our method, the additional instructions only summarize the main idea of each module.     
+
+The prompt for Fact Chek is:
+
+The prompt for Rule Selection is:
+
+The prompt for Goal Decomposition is:
+
+The prompt for Sign-Agreement is:
+
+Bi-Chainer employs bi-directional chaining with six modules: Fact Check, Fact Identify, Rule Selection, Logical Deduction, Logical Abduction, and Confusion Check. The prompt for the Fact Check module in our approach aligns with the prompt used in LAMBADA, as presented above.
+
+The prompt for Fact Identify is:
+
+The prompt for Rule Selection in Forward Chaining is:
+
+The prompt for Logical Deduction:
+
+The prompt for Rule Selection in Backward Chaining is:
+
+The prompt for Logical Abduction:
+
+The prompt for Confusion Check:
+
+% Multi-step logical reasoning has become one of the most important and promising capabilities for large language models (LLMs).  Large Language Models (LLMs) have shown human-like reasoning abilities but still face challenges in solving complex logical problems.  Existing unidirectional chaining methods, such as forward chaining and backward chaining, suffer from issues like low prediction accuracy and efficiency.  % Existing methods, either  or , all rely on the unidirectional chaining techniques to elicit the reasoning ability of LLMs and suffer from challenges like low result prediction accuracy and low efficiency.  To address these, we propose a bidirectional chaining method, Bi-Chainer, which dynamically switches to depth-first reasoning in the opposite reasoning direction when it encounters multiple branching options within the current direction. Thus, the intermediate reasoning results can be utilized as guidance to facilitate the reasoning process.  We show that Bi-Chainer achieves sizable accuracy boots over unidirectional chaining frameworks on four challenging logical reasoning datasets. Moreover, Bi-Chainer enhances the accuracy of intermediate proof steps and reduces the average number of inference calls, resulting in more efficient and accurate reasoning. % We conducted comprehensive experiments on four logical reasoning datasets to showcase the effectiveness of Bi-Chainer in enhancing the accuracy of label prediction and intermediate proof steps. Moreover, our results demonstrate the efficiency of Bi-Chainer in reducing the number of inference calls.width=1.0\textwidthfigure1.pdfBi-Chainer framework in bidirectional chaining (c) in comparison with the Selection-Inference framework in forward chaining (a) and the LAMBADA framework in backward chaining (b).  figure:introIntroductionmccarthy1963programstouvron2023llama, ouyang2022training, OpenAI2023GPT4TRwei2022chaincreswell2022selection, kazemi-etal-2023-lambada, valmeekam2022largecreswell2022selectionkazemi-etal-2023-lambadafigure:introtafjord2021proofwriterhan2022foliozhong2022analyticalclark2021transformersRelated Workstouvron2023llamachowdhery2023palmOpenAI2023GPT4TRhuang2022towardsFully Supervised Finetuningrajani2019explain, hendrycks2021measuringPrompting \& In-Context LearningChain of Thought (CoT) and its variantswei2022chainrationale engineeringfu2022complexitywang2022selfweng2022largeProblem decompositionzhou2022least, press2022measuringkazemi-etal-2023-lambadaHybrid Methodsreasoning-enhanced training and promptingchung2022scalingbootstrapping \& self-improvingzelikman2022star, huang2022largeMethodologyBi-directional ChainingBi-Chaineralg:Bi-Chainer Premises , Hypothesis  with condition  and consequent , Max-Depth D. % \Ensure Proved, Disproved, or Unknown.  =   = (, , )           = (, 
+
+         Update  and  with            = (           = (      Switch to BackwardChaining % }  = (,        = (,        = (       = (  Switch to ForwardChaining  Unknown blue\textitnot reach maximum steps DForwardChainingblue\textitblue\textitblue\textitblue\textit is TrueBackwardChainingblue\textitblue\textitblue\textitblue\textit is True is not Unknownfigure:introLLM Modules in Bi-Chainerappendix:prompt\textbf\textbf\textbf\textbf \textbfThe Bi-Chainer Algorithmalg:Bi-ChainerFact IdentifyFact CheckConfusion CheckRule SelectionLogical AbductionFact CheckConfusion CheckExperimental SetupOpenAI2023GPT4TRBaselinesStandardChain-of-Thought (CoT)wei2022chainSelection-Inference (SI)creswell2022selectionBackward Chaining Reasoning (LAMBADA)kazemi-etal-2023-lambadaDatasetsProofWritertafjord2021proofwriterkazemi-etal-2023-lambadaFOLIOhan2022folioAR-LSATzhong2022analyticalliang2022holistic, ribeiro2022streetParaRulesclark2021transformersResultsLabel Prediction Accuracy%%%width=\textwidthlabel_acc_pud_2.pngProofWriter-PUDwidth=\textwidthlabel_acc_pd_2.pngProofWriter-PDheight=2.8cmlabel_acc_folio_2.pngFOLIOheight=2.8cmlabel_acc_lsat_2.pngAR-LSATheight=2.8cmlabel_acc_para_2.pngParaRulesLabel prediction accuracies on (a)-(b) ProofWriter, (c) FOLIO, (d) AR-LSAT, and (e) ParaRules datasets.fig:label_accfig:label_accheight=3.8cmproof_acc_pud.pngfig:proof_acc_pudheight=3.8cmscatter_proof_acc.pngfig:scatter_proof_acc     (a) Proof accuracy results on ProofWriter-PUD (Depth-5) for a set of randomly sampled examples for which the models correctly predicted the goal.     (b) Precision and Recall results for Premise Selection on the selected samples from the ProofWriter-PUD (Depth-5), with shaded areas indicating the performance gap between different reasoning frameworks for the Proved, Disproved, and Unknown cases.     fig:proof_acc%%height=3.3cmvisit_num_proofwriter.pngProofWriterfig:sub1height=3.3cmvisit_num_folio.pngFOLIOfig:sub2height=3.3cmvisit_num_lsat.pngAR-LSATfig:sub3height=3.3cmvisit_num_para.pngParaRulesfig:sub4Comparing SI, LAMBADA with Bi-Chainer w.r.t. the average number of inference calls they make per example in different datasets.fig:visit numProof Accuracyfig:proof_acc_pudfig:scatter_proof_accNumber of Inference Callsfig:visit numAdditional ResultsPerformance on Open-Source Model.Individual Module Performance.tab:ablationCompare width-first search framework.yao2024treetab:totRobustness Analysis.tab:robustCase Studylambadacasebox   colback=gray!10,   colframe=gray!40,   coltitle=black,   title=\textbf,   fonttitle=\bfseries,   sharp corners,   boxrule=0.5pt,   enhanced,   left=2mm,     right=2mm,    top=2mm,    bottom=2mm
+
+Hypothesis: The cow chases the cow.
+
+% Step 1: Rule 6: If someone chase the lion then they chase the bear.% Abduction: The cow chases the lion.Step 1:  Rule 2: If someone is rough and the tiger sees the bear then they chase the cow. Rule 3: If someone likes the tiger then they chase the cow. % Rule 4: If someone is rough then they chase the cow.
+
+Step 2: Select the shorter rule, Rule 2. % Abduction: Fact 10 states that the tiger sees the bear. Therefore, we need to prove the cow likes the tiger. 
+
+Further steps fail to prove the goal.
+
+Conclusion: .
+
+ Lambada encountered premise confusion where Rule 2 and Rule 3 are both unified with the consequent of the goal statement. % whose premise condition partially aligned with Fact 10, assuming it was the correct choice. However, the correct proof actually required the selection of Rule 2. As a result of choosing the wrong rule, the model was unable to validate the other part of the premise condition, leading to an erroneous conclusion of unknown.blueMultiple rules unified.redSelect the wrong rule.redUnknownPremise confusion error:redThe model erroneously selects Rule 2 with fewer sub-goals, leading to further steps that fail to prove the sub-goal.biduducorrectcasebox   colback=gray!10,   colframe=gray!40,   coltitle=black,   title=\textbf,   fonttitle=\bfseries,   sharp corners,   boxrule=0.5pt,   enhanced,   left=2mm,     right=2mm,    top=2mm,    bottom=2mm
+
+Step 1: Identify the facts about the cow, The cow is blue, and The cow chases the lion.
+
+% Step 2: Forward-chaining Rule Selection, we have one candidate rule: Rule 2.% Rule 2 states that if the cow is blue and the tiger sees the bear, then the cow chases the lion.% Step 3: Forward-chaining Logical Deduction, as we know that the cow is blue (Fact 4) and the tiger sees the bear (Fact 10), we can deduce that the cow chases the lion. 
+
+Step 2: In forward-chaining rule selection, we have two candidate rules: Rule 1 and 6. % Rule 1 states that if someone is blue, then they chase the tiger.% Rule 6 states that if someone is blue and they chase the lion, then they are rough.Step 3: Forward-chaining Logical Deduction: As the cow is blue, we can deduce that the cow chases the tiger from Rule 1. Additionally, since it is stated that the cow chases the lion, we can further deduce that the cows are rough from Rule 6.
+
+Step 4: Backward-chaining Rule Selection: we have two candidate rules: Rule 6: if someone is rough and the tiger sees the bear, then they chase the cow. Rule 3 states that if someone likes the tiger, then they chase the cow.
+
+Step 4: Backward-chaining Logical Abduction: Using Rule 6 and knowing the cow is rough and the tiger sees the bear, we can deduce that the cow chases the cow. 
+
+Conclusion: . 
+
+Bi-Chainer for premise confusionblue**Detect forward chaining leads to multiple deductions, switch to backward chaining. **blueTrueConclusionAcknowledgementsLimitationsScalability:Dependency on Pretrained Models:Lack of Explainability:Knowledge Acquisition and Representation:Ethical Considerations:Ethics Statementanthology,customacl_natbibAdditional Results and Analysessec:appendix_errorBiases of Reasoning Frameworkswidth=1.0\textwidthconfusion_matrix.pngConfusion matrices.figure: confusion mtrixfig:label_accfigure: confusion mtrixFailure Modes of CoTCoT demonstrates a self-bias. Let's think step by step. From Fact 9 and Rule 4, since the cat sees the bear and someone who sees the cat  sees the bear, they eat the dog. This rule suggests that the cat could eat the dog because the cat sees the bear and , fulfilling the condition of the rule.  Conclusion: Proved
+
+ CoT makes an erroneous inference by concluding that the cat eats the dog based on its own speculation rather than the given facts. The model incorrectly assumes that the cat can see itself, which is not supported by the provided facts. 
+
+However, CoT predict the correct label, indicating self-bias leads to the generation of hallucinatory proofs.  (GPT-4 Incorrect CoT):red(which could be anyone, including the cat itself)redthe cat sees itselfSelf-bias error:Hallucinatory Proof:CoT fails to make inferences beyond the explicit rules provided.  Hypothesis: Karen will share "Stranger Things" to Lisa.
+
+Premises:
+
+1. "Stranger Things" is a popular Netflix show.
+
+2. If a Netflix show is popular, Karen will binge-watch it.
+
+3. If and only if Karen binge-watches a Netflix show, she will download it.
+
+4. Karen does not download "Black Mirror".
+
+5. "Black Mirror" is a Netflix show.
+
+6. If Karen binge-watches a Netflix show, she will share it to Lisa.
+
+ Let's think step by step. "Stranger Things" is a popular Netflix show, so Karen will binge-watch it (Premise 1, Premise 2). However,  whether Karen has actually binge-watched "Stranger Things" or whether she has downloaded it. Therefore, we cannot definitively conclude whether Karen will share "Stranger Things" with Lisa based on the given information.
+
+Conclusion: Unknown
+
+ CoT makes an erroneous inference of the unknown due to its inability to engage in deeper reasoning. CoT gives up after failing to find any direct link between watching "Stranger Things" and sharing with Lisa. (GPT-4 Incorrect CoT):redthere is no direct information provided aboutMulti-step reasoning error:Failure modes of SISI encounters over-inference in the reasoning process. Hypothesis: The squirrel is blue.
+
+Facts:
+
+1. The dog eats the mouse.\\ 2. The dog eats the tiger.\\ 3. The dog visits the squirrel.\\ 4. The mouse is green.\\ 5. The mouse visits the tiger.\\ 6. The squirrel is big.\\ 7. The squirrel is round.\\ 8. The squirrel likes the dog.\\ 9. The tiger eats the dog.\\ 10. The tiger visits the mouse.\\ Rules:\\ 1. If someone eats the tiger and the tiger is big then they are green.\\ 2. If someone is green then they like the squirrel.\\ 3. If the dog is green then the dog likes the mouse.\\ 4. If someone visits the tiger then the tiger is blue.\\ 5. If someone visits the tiger then the tiger visits the dog.\\ 6. If someone is blue and they eat the squirrel then the squirrel is green.\\ 7. If someone is blue then they eat the squirrel.\\ 8. If someone likes the dog and they are green then they are blue.\\  \\ Step 1: Analyze Fact 5 and Rule 4. 
+
+Fact 5: the mouse visits the tiger. Rule 4: if someone visits the tiger then the tiger is blue.  Deduction: The tiger is blue. % Step 2: Analyze the deduced fact that the tiger is blue and Rule 5:% Rule 5 states that if someone visits the tiger then the tiger visits the dog.% From this, we can deduce: The tiger visits the dog. 
+
+Step 2: Analyze the deduced fact that the tiger is blue and Rule 7. 
+
+Rule 7: if someone is blue, they eat the squirrel.  
+
+Deduction: The tiger eats the squirrel. 
+
+Step 3: Analyze Fact 4 and Rule 2.  
+
+Fact 4: the mouse is green. Rule 2: if someone is green then they like the squirrel.
+
+Deduction: Mouse likes the squirrel. 
+
+Step 4: Analyze Fact 8 and Rule 8.
+
+Fact 8: the squirrel likes the dog. Rule 8: if someone likes the dog and they are green then they are blue. 
+
+Deduction:  so Rule 8 does not apply.  
+
+Conclusion: Unknown. 
+
+ Despite deducing that the squirrel is green based on the deduction results in Step 1 and 2 using Rule 6, the presence of invalid reasoning Step 3 prevents the model from progressing along the correct reasoning path within its limited multi-step reasoning capacity. As a result, the model incorrectly concludes that Rule 8 cannot be applied.
+
+SI reasoning steps:blueValidblueValidblueValidredInvalidredWe do not have information about the squirrel being green,redWrong deductionOver-inference error:Failure Modes of LAMBADALambada experienced premise confusion  Hypothesis: The cow chases the bear.
+
+Facts:
+
+1. The bear is blue.\\ 2. The bear is round.\\ 3. The bear sees the cow.\\ 4. The cow is blue.\\ 5. The lion is rough.\\ 6. The lion likes the tiger.\\ 7. The lion sees the bear.\\ 8. The tiger is cold.\\ 9. The tiger is round.\\ 10. The tiger sees the bear.\\ 11. The tiger sees the cow.\\ Rules:\\ 1. If someone is blue then they chase the tiger.\\ 2. If the cow is blue and the tiger sees the bear then the cow chases the lion.\\ 3. If someone likes the tiger then they chase the lion.\\ 4. If someone likes the lion then the lion chases the tiger.\\ 5. If the cow is cold and the cow chases the bear then the bear chases the tiger.\\ 6. If someone chases the cow and they chase the lion then they chase the bear.\\ 7. If someone is rough then they chase the cow.\\ 8. If someone is cold then they are blue.\\ 9. If someone is blue and they chase the lion then they are rough.\\
+
+% Step 1: Rule 6: If someone chase the lion then they chase the bear.% Abduction: The cow chases the lion.
+
+Step 1: Select Rule 6, If someone chases the cow and they chase the lion then they chase the bear. 
+
+Step 2: We need to prove the cow chases the cow and they chase the lion. 
+
+Step 3: To prove the cow chases the cow, select Rule 7: If someone is rough then they chase the cow.
+
+Step 4: We need to prove the cow is rough.
+
+Step 5: To prove the cow is rough, select Rule 9: If someone is blue and they chase the lion then they are rough.
+
+Step 6: By checking the facts, we know that the cow is blue (Premise 4). 
+
+Step 7: We need to prove the cow chases the lion. 
+
+Step 8: To prove the cow chases the lion, we have two candidate rules. Rule 2: If the cow is blue and the tiger sees the bear then the cow chases the lion; and Rule 3: If someone likes the tiger then they chase the lion.
+
+Step 9: As Rule 3 has fewer sub-goals, we start with proving the cow likes the tiger. 
+
+Step 10: Based on the given information, we were  "The cow likes the tiger." Therefore, the truth or validity of this statement remains unknown based on the provided context.
+
+% Step 1: % Premise 17: If someone is blue and the tiger sees the bear then they chase the lion.% Rule 3: If someone likes the tiger then they chase the lion.% % Rule 4: If someone is rough then they chase the cow.% {Multiple rules unified.}% Step 2: Select the shorter rule, Rule 2. {Select the wrong rule.}% % Abduction: Fact 10 states that the tiger sees the bear. Therefore, we need to prove the cow likes the tiger. % Further steps fail to prove the goal.
+
+Conclusion: Unknown.
+
+ Lambada encountered premise confusion where Rule 2 and Rule 3 are both unified with the consequent of the goal statement. The model erroneously selects Rule 3 with fewer sub-goals, leading to further steps that fail to prove the sub-goal. 
+
+LAMBADA reasoning steps:redSelect the wrong rule based on the Rerank strategy in LAMBADA.redunable to find a rule or fact that directly connects or unifies with the statementPremise confusion error:Implementation DetailsOpenAI2023GPT4TR\textbf.https://allenai.org/data/proofwriter\textbf.https://github.com/Yale-LILY/FOLIO\textbf.https://github.com/zhongwanjun/AR-LSAT/tree/main/data\textbf.https://allenai.org/data/ruletakertab:examplesFew-Shot PromptsChain-of-Thought Prompting      Task Description:\\     Given a set of premises, you have to reason whether the hypothesis is true, false, or unknown.      \\
+
+    Hypothesis:\\     In La Liga 2021-2022, Real Madrid ranks higher than Barcelona. \\
+
+    Premises:\\     1: A La Liga soccer team ranks higher than another if it receives more points.\\     2: If two La Liga soccer teams recieve the same points, the team which recieves more points from the games between the two teams ranks higher.\\     3: Real Madrid and Barcelona are both La Liga soccer teams.\\     4: In La Liga 2021-2022, Real Madrid recieves 86 points and Barcelon recieves 73 points.\\     5: In La Liga 2021-2022, Real Madrid and Barcelona both recieve 3 points from the games between them.\\
+
+    Reason:\\     Let's think step by step. As indicated by Premise 3, Real Madrid and Barcelona are both La Liga soccer teams.     From premise 4, Real Madrid received 86 points, and Barcelona received 73 points. This implies Real Madrid has more points than Barcelona.     From premise 1, if a team receives more points, it ranks higher.     Therefore, Real Madrid ranks higher than Barcelona based on points. \\
+
+    Answer:\\     True
+
+Selection-Inference PromptingThe \textbf prompt is:  Task Description:\\ Given a set of premises, you have to reason whether the hypothesis is true, false, or unknown. To prove the hypothesis, you need to select the premises where new conclusions can be derived toward proving the goal. \\
+
+    Hypothesis:\\     In La Liga 2021-2022, Real Madrid ranks higher than Barcelona. \\
+
+    Premises:\\     1: A La Liga soccer team ranks higher than another if it receives more points.\\     2: If two La Liga soccer teams recieve the same points, the team which recieves more points from the games between the two teams ranks higher.\\     3: Real Madrid and Barcelona are both La Liga soccer teams.\\     4: In La Liga 2021-2022, Real Madrid receives 86 points and Barcelon recieves 73 points.\\     5: In La Liga 2021-2022, Real Madrid and Barcelona both received 3 points from the games between them.\\
+
+    Selected Premises:\\     Step 1: Premise 3: Real Madrid and Barcelona are both La Liga soccer teams.\\     Step 2: Premise 4, Real Madrid received 86 points, and Barcelona received 73 points.      Step 3: Premise 1, If a team receives more points, it ranks higher.
+
+The \textbf prompt is:      Task Description:\\     Derive the inferences based on the selected premises. \\
+
+    Inferences:\\     Step 1: From Premises 4, Real Madrid received 86 points, and Barcelona received 73 points. This implies Real Madrid has more points than Barcelona.\\     Step 2: From Premise 1: If a team receives more points, it ranks higher. We know that Real Madrid receives more points than Barcelona. Therefore, Real Madrid ranks higher than Barcelona. LAMBADA Promptingappendix:prompt  Task Description:\\ Given a set of premises, you have to reason whether the hypothesis is true, false, or unknown. To prove the hypothesis, you need to check the premises whether the hypothesis can be directly proved or disproved by one of the premises. \\
+
+    Hypothesis:\\     In La Liga 2021-2022, Real Madrid ranks higher than Barcelona. \\
+
+    Premises:\\     % 1: A La Liga soccer team ranks higher than another if it receives more points.\\% 2: If two La Liga soccer teams recieve the same points, the team which recieves more points from the games between the two teams ranks higher.\\% 3: Real Madrid and Barcelona are both La Liga soccer teams.\\% 4: In La Liga 2021-2022, Real Madrid recieves 86 points and Barcelon recieves 73 points.\\% 5: In La Liga 2021-2022, Real Madrid and Barcelona both recieve 3 points from the games between them.\\     ...\\     6: In La Liga 2021-2022, Real Madrid ranks higher than Barcelona.\\
+
+    Fact Check:\\     The hypothesis can be directly proved by Premise 6.
+
+Task Description:\\ Given a set of premises, you have to reason whether the hypothesis is true, false, or unknown. To prove the hypothesis, you need to select the rules that share the consistent consequences as the hypothesis.  \\
+
+    Hypothesis:\\     In La Liga 2021-2022, Real Madrid ranks higher than Barcelona. \\
+
+    Premises:\\     1: A La Liga soccer team ranks higher than another if it receives more points.\\     2: If two La Liga soccer teams recieve the same points, the team which recieves more points from the games between the two teams ranks higher.\\     3: Real Madrid and Barcelona are both La Liga soccer teams.\\     4: In La Liga 2021-2022, Real Madrid recieves 86 points and Barcelon recieves 73 points.\\     5: In La Liga 2021-2022, Real Madrid and Barcelona both recieve 3 points from the games between them.\\
+
+    Rule Selection:\\     Premise 1, A La Liga soccer team ranks higher than another if it receives more points. or \\     Premise 2: If two La Liga soccer teams recieve the same points, the team which recieves more points from the games between the two teams ranks higher. 
+
+Task Description:\\ Analyze the plausible sub-goals for the selected rules.  \\
+
+    Hypothesis:\\     In La Liga 2021-2022, Real Madrid ranks higher than Barcelona. \\
+
+    Decomposed Sub-Goals:\\     According to Premise 1, if we want to prove a La Liga soccer team ranks higher than another, we need to prove the La Liga soccer team receives more points. or \\     According to Premise 2, if we want to prove a La Liga soccer team ranks higher than another, we need to prove two La Liga soccer teams receive the same points, and one of them receives more points from the games between the two teams. 
+
+Task Description:\\ Check whether the consequence of the rule agrees or disagrees with the hypothesis.  \\
+
+    Hypothesis:\\     In La Liga 2021-2022, Real Madrid ranks higher than Barcelona. \\
+
+    Rule:\\     In La Liga 2021-2022, Real Madrid ranks higher than Barcelona. \\
+
+    Agreement Sign:\\     Agree. 
+
+Bi-Chainer Prompting  Task Description:\\ Given a set of premises, you have to reason whether the hypothesis is true, false, or unknown. To prove the hypothesis, you need to identify the premises where new conclusions can be derived toward proving the goal. \\
+
+    Hypothesis:\\     In La Liga 2021-2022, Real Madrid ranks higher than Barcelona. \\
+
+    Premises:\\     1: A La Liga soccer team ranks higher than another if it receives more points.\\     2: If two La Liga soccer teams recieve the same points, the team which recieves more points from the games between the two teams ranks higher.\\     3: Real Madrid and Barcelona are both La Liga soccer teams.\\     4: In La Liga 2021-2022, Real Madrid recieves 86 points and Barcelon recieves 73 points.\\     5: In La Liga 2021-2022, Real Madrid and Barcelona both recieve 3 points from the games between them.\\
+
+    Fact Identify:\\     3: Real Madrid and Barcelona are both La Liga soccer teams.\\     4: In La Liga 2021-2022, Real Madrid recieves 86 points and Barcelon recieves 73 points.\\     5: In La Liga 2021-2022, Real Madrid and Barcelona both recieve 3 points from the games between them.
+
+Task Description:\\ Given a set of premises, you have to reason whether the hypothesis is true, false, or unknown. To prove the hypothesis, you need to select the rules whose conditions entail the identified facts and whose consequents entail the consequent of the hypothesis. If a rule satisfying these criteria is found, return it as the result. Otherwise, return only the rules that are entailed by the identified facts.  \\
+
+    Hypothesis:\\     In La Liga 2021-2022, Real Madrid ranks higher than Barcelona. \\
+
+    Premises:\\     1: A La Liga soccer team ranks higher than another if it receives more points.\\     2: If two La Liga soccer teams recieve the same points, the team which recieves more points from the games between the two teams ranks higher.\\     3: Real Madrid and Barcelona are both La Liga soccer teams.\\     4: In La Liga 2021-2022, Real Madrid recieves 86 points and Barcelon recieves 73 points.\\     5: In La Liga 2021-2022, Real Madrid and Barcelona both recieve 3 points from the games between them.\\
+
+    Rule Selection:\\     Premise 1, A La Liga soccer team ranks higher than another if it receives more points. \\
+
+    Task Description:\\     Derive the inferences based on the selected premises. \\
+
+    Inferences:\\     We know that Real Madrid receives more points than Barcelona (Premise 4). Therefore, Real Madrid ranks higher than Barcelona (Premise 1).
+
+Task Description:\\ Given a set of premises, you have to reason whether the hypothesis is true, false, or unknown. To prove the hypothesis, you need to select the rules whose consequences entail the consequence of the hypothesis.  \\
+
+    Hypothesis:\\     In La Liga 2021-2022, Real Madrid ranks higher than Barcelona. \\
+
+    Premises:\\     1: A La Liga soccer team ranks higher than another if it receives more points.\\     2: If two La Liga soccer teams recieve the same points, the team which recieves more points from the games between the two teams ranks higher.\\     3: Real Madrid and Barcelona are both La Liga soccer teams.\\     4: In La Liga 2021-2022, Real Madrid recieves 86 points and Barcelon recieves 73 points.\\     5: In La Liga 2021-2022, Real Madrid and Barcelona both recieve 3 points from the games between them.\\
+
+    Rule Selection:\\     Premise 1, A La Liga soccer team ranks higher than another if it receives more points. or \\     Premise 2: If two La Liga soccer teams recieve the same points, the team which recieves more points from the games between the two teams ranks higher.\\
+
+    Task Description:\\     Analyze the plausible explanations for the selected rules. \\
+
+    Plausible Reasons:\\     According to Premise 1, if we want to prove a La Liga soccer team ranks higher than another, we need to prove the La Liga soccer team receives more points. or \\     According to Premise 2, if we want to prove a La Liga soccer team ranks higher than another, we need to prove two La Liga soccer teams receive the same points, and one of them receives more points from the games between the two teams. 
+
+    Task Description:\\     Check whether each reasoning step produces consistent deduction or induction results after applying the selected rules. \\
+
+    Abduction Results:\\     According to Premise 1, if we want to prove a La Liga soccer team ranks higher than another, we need to prove the La Liga soccer team receives more points. or \\     According to Premise 2, if we want to prove a La Liga soccer team ranks higher than another, we need to prove two La Liga soccer teams receive the same points, and one of them receives more points from the games between the two teams. \\
+
+    Confusion Check: \\      True
+
+\textwidth!%  &    &    \\ \hline  &    &   FOLIO \\ \hline  &    &   AR-LSAT\\ \hline \end%  A summary of the examples we use for the four datasets in our study, representing three different types of logical reasoning problems.tab:examples

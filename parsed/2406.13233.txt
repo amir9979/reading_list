@@ -1,0 +1,79 @@
+Mixture of Experts (MoE)~ is an efficient scaling technique that allows for larger model sizes with less computation, resulting in enhanced performance. MoE models can be trained and used for inference more efficiently compared to dense models, requiring substantially fewer computational resources.  Due to these advantages, pioneering works~ have applied MoE to transformer-based language models and demonstrated their superiority. Typically, they replace the feed-forward network (FFN) in each layer of the model with a routing function and multiple FFNs, referred to as experts, with only a subset of these experts being activated at any time. We refer to these models, which combine MoE and large language models (LLMs), as MoE-LLMs.
+
+In addition to MoE-LLMs, fine-tuning techniques have also seen significant advancements. Pre-trained LLMs are often fine-tuned for downstream tasks. However, as models increase in size, full fine-tuning becomes increasingly computationally expensive~. LoRA~ addresses this challenge by providing an effective fine-tuning methodology for scenarios with constrained computational resources. LoRA freezes model weights and injects trainable rank decomposition matrices, thereby modifying the behavior of dense linear layers without substantially changing the original model parameters~. Recent studies~ convincingly show that integrating LoRA with MoE offers a promising approach for achieving high performance with minimal parameter updates. Methods like MixLoRA~, MoLE~, and LoRAMoE~ combine MoE with LoRA by learning multiple pairs of low-rank matrices, known as LoRA experts, and use a router to compute the probabilities of each expert for the inputs. For consistency and convenience, we will refer to these methods collectively as Mo-LoRA in the following text.
+
+The early MoE architecture utilized gate units as the router to select experts for each token~. Following the success of the Switch Transformer~ in large-scale pre-training, MoE received increased attention, leading to the development of more advanced routing algorithms. For example, BASE Layers~ use a linear assignment problem to maximize token-expert affinities while ensuring each expert receives an equal number of tokens. Hash layers~ employ hashing techniques on input tokens to allocate different sets of weights. A different approach, Expert-Choice Routing~, allows experts to select their preferred tokens, achieving a more balanced expert load and better cost-effectiveness. Furthermore, DeepMind's Mixture-of-Depths (MoD)~ introduces a router to determine the necessity of computation for each input token at each layer.
+
+MoE has been widely applied in two scenarios for large language models: MoE-LLMs~ and Mo-LoRA~ , as briefly introduced in . The core component of both is the MoE layer, which consists of  specialized experts  and a router . The experts often have the same parameterization, such as feed-forward neural networks (FFNs) in MoE-LLMs or LoRA modules in Mo-LoRA. The router usually activates the  () experts with the highest routing probabilities (i.e., the top- experts) and distributes input tokens to corresponding experts.
+
+Given an input token , the routing process works as:
+
+where  is the parameter matrix of the router, and TopK retains only the top- elements, setting the rest to  (so that after Softmax, the corresponding routing probabilities are zero). The output of the MoE layer is then computed as:
+
+Additionally, an auxiliary loss is applied during the training stage to encourage a balanced load across experts within the same MoE layer~. Given a batch  of tokens, this load balancing loss for a MoE layer is defined as:
+
+where  is a hyperparameter, and  represents the fraction of tokens dispatched to expert ,
+
+and  denotes the average fraction of the router probability allocated for expert , i.e.,
+
+Almost all traditional MoE methods adopt a top- routing strategy for expert selection~. Therefore, each token passes through exactly  experts and occupies the same amount of computation. We first question the rationality of the fixed top- routing with the following studies. 
+
+Concretely, the SocialIQA dataset~ is fed into Mixtral-8x7B~, which employs a top-2 routing strategy for expert selection.  We record the routing distribution for all tokens in each MoE layer of the model.  To evaluate the sharpness of the routing distribution, we count the number of top experts whose cumulative routing probabilities exceed 50\% and according to this, all tokens can be divided into four categories.  The proportions of the tokens are displayed in .
+
+As shown, the proportions of tokens within different counts show substantial variation.  Namely, the sharpness of the routing distribution varies significantly.  A considerable number of tokens have highly uneven routing distributions.  Some tokens tend towards a single expert, while a significant proportion of tokens distribute attention to more than 2 experts. These observations imply that the traditional fixed top- routing strategy, which selects the same number of experts for each token, may not be optimal. This is also implied by the argument in MoD~ that some tokens may not need to pass through all MoE layers. 
+
+ achieves token-adaptive expert selection by incorporating , which are defined as an empty operation requiring zero FLOPs to process the token feature.  In the context of LLMs, common operations satisfying this requirement include a constant zero mapping and an identity mapping (we take the zero mappings null expert as the default choice in the following just for simplicity). Consequently, an  layer includes  experts, where  are true experts and  are null experts, and a top- router , which functions the same as the vanilla MoE router except for its output dimension.
+
+The router still performs fixed top- selection but with  larger than in vanilla MoE.  When null experts are chosen, no additional computation occurs due to their definition.  Consequently, the number of true experts selected varies for different tokens.
+
+We can adjust the number of null experts according to the compute budget, and then reinforce the usage of null experts with a load balancing loss (see ).  This way, the load of true experts (or the overall FLOPs) can be easily adjusted to an appropriate degree.
+
+Expert-choice routing~ also allows varying numbers of experts for different tokens but struggles with autoregressive text generation since it requires considering both past and future tokens.  In contrast, our token-choice method avoids this issue.
+
+MoD~ uses expert-choice routing to let tokens bypass some FFN layers, speeding up inference.  Similarly, in , if all selected experts for a token are null experts,  the token effectively bypasses the  layer,  achieving a similar effect.
+
+.  Including null experts in the load balancing loss is necessary to prevent tokens from disproportionately selecting true experts. However, since all null experts are identical in nature, it is unnecessary to balance the load among them. Treating null experts as distinct entities for load balancing can significantly hinder performance, as shown in . %
+
+To address this, we modify the load balancing loss in  as
+
+where
+
+By using an average load among the null experts, we make no distinction between them, which can avoid unnecessary constraints on the router. 
+
+. In practice, we anneal the weight  of our load balancing loss to chase a better balance-efficiency trade-off.  In particular, we first set a larger  to enforce strict load balancing, ensuring tokens do not disproportionately select true experts, leading to a more even load distribution among all experts. In the latter, we use a smaller  to give tokens greater freedom in choosing experts.  The empirical efficacy of doing so is verified in .
+
+In vanilla MoE,  is normalized using the Softmax activation function. With null experts, we have two options:  1) normalizing over all selected top- experts, or  2) normalizing over only the true experts within the top- ones. We choose the latter to ensure that the weighted average output by the  layer remains consistent with the scale of that from the vanilla MoE layer.
+
+ is designed to be plug-and-play, able to be seamlessly integrated with pre-trained LLMs and MoE-LLMs, as illustrated in . Due to resource constraints, we mainly focus on fine-tuning such models. For fine-tuning regular LLMs with the Mo-LoRA architecture, we need to add a randomly initialized router and multiple LoRA experts to the corresponding module. When applying  to MoE-LLMs, the router's output dimensions are expanded to provide corresponding probabilities for null experts.  The parameters for the new dimensions can be derived from the original parameter values. This ensures the expanded router balances the load across all experts, including both true and null experts, at the beginning of the fine-tuning process.  For more specific implementation details, see . To fine-tune , we need to adjust the router and experts to meet our token-adaptive routing strategy and follow the detailed modifications outlined in  to achieve adaptive routing. 
+
+We select Llama2-7B~ as our base model due to its strong performance and popularity within the AI community. To validate the effectiveness of our method, we evaluate it on two distinct task types using five widely recognized datasets. The first task focuses on semantic understanding, for which we use two datasets from the renowned GLUE Benchmark~: Recognizing Textual Entailment (RTE) and the Corpus of Linguistic Acceptability (COLA). % The second task involves commonsense reasoning and includes the following datasets: ScienceQA (SQA)~, CommonsenseQA (CQA)~, and OpenBookQA (OQA)~.
+
+To highlight our method's significance, we use the typical Mo-LoRA method as the baseline for comparison. For each MoE/ layer, we set  (4 true experts). For the baseline, we set  for the top- routing strategy, which are the most common choices. For our , we selected various configurations for  (the number of top- experts) and  (the number of null experts). We use AdamW~ as the optimizer with a learning rate of 3e-4. The rank of each LoRA expert is set to 8, and the initialization of the LoRA modules follows the original LoRA implementation~. For each LLM layer, we applied LoRA to  in the self-attention modules and  in the MLP modules. We trained on each dataset for 2 epochs, using 3 random seeds, and averaged the results to obtain the final performance metrics.
+
+The results are shown in . We use accuracy as the main metric to evaluate the model's performance~.  It is evident that  achieves higher accuracy across almost all datasets compared to the traditional baseline. For instance, on the RTE and OQA datasets, all configurations of  surpass the baseline in accuracy. This trend continues across the other datasets, demonstrating the robustness and effectiveness of  in achieving better performance with more adaptive expert utilization.
+
+We use Mixtral-8x7B~ as the base model, where each MoE layer has 8 FFN experts and a top-2 router. We selected six well-known datasets from different categories for our experiments: WinoGrande (WINO)~ for coreference resolution, Hellaswag (HELLA)~, PIQA~, and SIQA~ for commonsense reasoning, OpenBookQA (OQA)~ for reading comprehension, and ARC-Challenge (ARC-C)~ for science examination.
+
+Due to the substantial resources required for pre-training, we focus on fine-tuning. To save memory, we use 4-bit quantization and the QLoRA method~. The LoRA target modules for the baseline are |gate|, |w1|, |w2|, and |w3|. For our , we modify this architecture as described in . Specifically, we add null experts to each MoE layer, and the router expands its output dimension to assign probabilities to all experts. To simplify the modification, we define an additional module, |gate2|, whose parameters can be derived from |gate|.
+
+Together, |gate| and |gate2| form the router that assigns weights to all experts. Thus, the LoRA target modules for our method are |gate|, |gate2|, |w1|, |w2|, and |w3|. The rank of the LoRA module is set to 8, and the learning rate is 5e-5. Due to the tendency of MoE-LLMs to overfit during fine-tuning, we use 1000 samples for training on each dataset and train for 2 epochs. In the 2 epochs, we set different values of  in  to , as described in . All evaluations are conducted using OpenCompass~ to assess accuracy.
+
+In this section, we present the results for the configuration with  and  (i.e., 8 null experts and top-3 expert selection), as shown in . Additional results are in  and .
+
+ outperforms the baseline on WinoGrande, HellaSwag, SIQA, and ARC-Challenge. Although the baseline slightly surpasses  on PIQA and OpenBookQA,  achieves a higher average accuracy.
+
+ FFNs account for the majority of the FLOPs during inference. This issue is exacerbated in Mixtral-8x7B, which replaces the FFN with a set of 8 FFNs and selects the top-2 during each inference step. This greatly increases the computational load.  significantly reduces FLOPs across all datasets, achieving an average reduction of 15.21\% compared to the baseline. This demonstrates that  is more computationally efficient while maintaining competitive performance.
+
+ The Load metric indicates the average number of experts used per MoE/ layer. The baseline method has a Load of 2. In contrast,  achieves a lower average Load of 1.66, indicating more efficient utilization of experts.
+
+Overall, the results confirm the effectiveness of the token-adaptive mechanism in improving both computational efficiency and model performance.
+
+In this section, we provide results for various  and , beyond the single configuration shown in . We also present ablation studies for , corresponding to . Additional ablation experiments can be found in .
+
+We tested different combinations of  and  on the SIQA dataset, with results shown in . Compared to the  configuration in ,  can further reduce the expert load (FLOPs) while maintaining competitive performance. For example, with , the expert load is 1.54 (79.57\% of baseline FLOPs), yet accuracy remains higher than the baseline. There are also accuracy differences among configurations with similar loads. For instance,  and  have nearly identical loads but differ in accuracy. This discrepancy highlights areas for further exploration in future research.
+
+To verify the effectiveness of the modified load balancing loss introduced in , we selected two datasets from each of the semantic understanding and commonsense reasoning tasks. The results, illustrated in , show that lifting the load balancing constraints among null experts significantly improves the performance of the fine-tuned model on the RTE, COLA, SQA, and OQA datasets.
+
+The effectiveness of the annealing training process described in  is validated in . The tight load balancing constraints in the first epoch effectively control the expert load in , meeting our expectations. The loose constraints in the second epoch allow tokens greater  freedom  in selecting experts, thereby enhancing performance with almost no increase in expert load. For example, on the WINO dataset, the accuracy increased by 5.69\% compared to the result after epoch 1, with almost no increase in expert load.
+
+We tried the two options mentioned in  on the SIQA dataset, and the results are shown in . As we can see, option 2) is a superior choice, showing a significant improvement in accuracy , with only a minor change in expert load.

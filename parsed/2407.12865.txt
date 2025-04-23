@@ -1,0 +1,129 @@
+The generation module necessitates a dataset, a prompt, and an LLM with which to generate outputs. In usual workflows the prompt will consist of formatting `slots' where the dataset will provide text that will be used to fill in the slots as shown in Figure . For instance, a prompt for a retrieval augmented generation (RAG) workflow could be:
+
+The dataset should then consist of the columns `context', `question' and optionally target outputs which can be used in the evaluate module. We then feed these formatted prompts to the generation function and receive LLM generated responses.
+
+Our evaluation module then takes in the generations from the generation function, user-defined evaluation criteria, and optionally an expected answer. The module in turn returns a rating as to how well the response performs as judged by the evaluation criteria as well as an explanation for the rating. We ask for the explanation before the evaluator module returns a rating as chain of thought has been shown to dramatically improve LLM performance, especially on reasoning tasks . For use cases with an expected answer, evaluation criteria can be as simple as:
+
+We note that we only ask for a binary indicator as empirically we found LLM's are far better and more consistent at binary indicators than a sliding numeric scale.
+
+The gradient module receives the current prompt, the evaluation criteria, a description of the task at hand, and a maximum of 5 generation responses that received a rating of 0 from the evaluation module.  Note that any generation receiving a rating of 1 in the evaluate step will be excluded from this process as it cannot be improved, thus it is possible the gradient module will receive less than 5 inputs. An LLM is then asked to evaluate the input and output for the specific prompt and provide actionable methods for improving the prompts to address deficiencies noted in the rating explanation.  The gradient module leverages all available information—the task description, input to the generation function, the LLM response from the generate function, evaluation criteria, and explanations for poor ratings—to identify areas for improvement. Below is a sample of what a gradient will look like:
+
+This step aims to emulate human evaluation of generations, determining how to adjust the prompt to achieve the desired outcomes.
+
+While methods like  use the gradients individually to then generate new prompts (ie. 5 gradients would lead to generating 5 new prompts), we find that this leads to prompts that are far too specific to certain questions. Additionally, the task of evaluating these candidate prompts consumes API calls that can lead to costly compute bills. Therefore, we found the most effective way of generating new general-purpose prompts was to summarize all gradient feedback into one general paragraph that could apply to the dataset as whole. We feed the task description and the gradients computed in the previous step to the gradient summarization module and use an LLM to generate a one-paragraph summary of the critiques taking into consideration the task at hand. This step can be thought of as analogous to averaging gradients over a mini-batch to stabilize training.
+
+Our prompt editor module then takes in the current prompt, the summarized gradient, and the task description and outputs a candidate prompt for each prompt within our beam (doubling our beam size momentarily). The new prompts should likely address the critiques provided in the previous iteration. Each candidate prompt is checked to ensure every slot in the current prompt is present in the new prompt in order to avoid information loss of any kind. We then perform an evaluation of each new candidate prompt. Specifically, we take a randomly sampled subset (five rows) of the dataset and feed the responses to our generate and evaluate modules, choosing the two candidate prompts with the highest average rating. As our beam is now 5 prompts wide we reduce to a beam size of 3 through selecting the top 3 performers as given by the upper confidence bound . This reduction step thus always retains the best-performing prompt from previous iterations, reducing the variance from evaluating candidate prompts on a small sample size.
+
+ The task is answering grade school math questions.  Does the output align with the expected answer?  questions are math questions.  if the answer matches the expected answer. Give it a 1 if a math teacher  consider the answer correct. Give it a 0 if the answer is incorrect. not worry about intermediate calculations, only the final answer.
+
+The task is to answer math questions.--- Follow the following format. Question: 
+
+We ... Answer: the answer to the question provided--- Question: \{question\} Reasoning: Let's think step by step in order to Answer: 
+
+Reasoning: Let's think step by step in order to 
+
+Reasoning: Let's think step by step in order to 
+
+Answer:
+
+Take advantage of the large size of the language model and generate detailed explanations for the math questions instead of just the answers.»  ---  Follow the following format.  Question: 
+
+We ...  Explanation: the answer to the question provided  ---  Question: \{question\}  Reasoning: Let's think step by step in order to : 
+
+The task involves solving math word problems accurately by following a clear and logical reasoning process. Please adhere to the following format to ensure a coherent and cogent response:  ---  Question: 
+
+Reasoning: Let's think step by step in order to produce the answer. We will break down the problem into smaller parts, perform the necessary calculations, and show all work and thought processes clearly. Ensure each step logically follows from the previous one and aligns with the evaluation criteria of correctness, completeness, and clarity.  Answer: Provide the final answer to the question based on the reasoning process above.  ---  Question: \{question\}  Reasoning: Let's think step by step in order to produce the answer. We...  Answer:
+
+:  The task is a question answering task given specific context that should have the answer. : 
+
+Does the llm output match the expected answer?  the model says it does not have enough context to answer the question give it a 0.  judge whether a human would grade the output as matching the expected answer.  context around the answer is fine as long as the answer is correct according to the expected answer within the brackets <EXPECTED ANSWER>.  it does match give it a 1. If it does not give it a 0. : The task is a question answering task given context that should have the answer.  ---  Follow the following format.  Question: 
+
+Reasoning: Let's think step by step in order to 
+
+Context: 
+
+We ...  Sophisticated Answer: the answer to the question given the context provided  ---  Question: \{question\}  Context: \{context\}  Reasoning: Let's think step by step in order to : 
+
+You are tasked with answering a question based on a given context. Follow the detailed steps below to ensure your response is specific, comprehensive, and derived solely from the context provided.  1. Carefully read and fully understand the question. Clarify exactly what information is being sought by the question.  2. Thoroughly analyze the given context. Identify and extract all relevant pieces of information that directly pertain to the question.  3. Think logically and proceed step-by-step to connect the extracted details from the context to the question. Clearly explain your reasoning process, ensuring it is detailed, coherent, and directly related to the context.  4. Provide the final answer based on your detailed reasoning process, ensuring it directly addresses the question.  Use the following format for your response:  Question: 
+
+Context: 
+
+Reasoning: Let's think step by step to understand and find the answer. First, identify specific details from the context that are relevant to the question. Then, logically connect these details to derive the answer. Ensure your reasoning is clear, detailed, and coherent.  Answer: The answer to the question based on the context provided
+
+:  The task is to complete a sentence with the most logical of 4 possible options. :  Does the output match the the expected answer?  it does give it a 1. If it does not give it a 0.   does not have to match exactly but it should be close enough that a reasonable human would consider the output to match the expected answer.  sure that the chosen completion is the correct completion. : 
+
+The task is to complete a sentence with the most logical of 4 possible options.  ---  Follow the following format.  Context: 
+
+Ending 1: 
+
+Ending 2: 
+
+Ending 3: 
+
+Ending 4: 
+
+Reasoning: Let's think step by step in order to 
+
+We ...  Answer: the answer to the question given the possible endings provided  ---  Context: \{context\}  Ending 1: \{ending1\}  Ending 2: \{ending2\}  Ending 3: \{ending3\}  Ending 4: \{ending4\}  Reasoning: Let's think step by step in order to :  Your task is to complete a sentence with the most logical of 4 possible options. Follow these detailed instructions to ensure the best possible output.  Task Instructions  1. Understand the Context: Carefully read the provided context to grasp the situation, the main idea, and any underlying nuances. Pay close attention to the details that are crucial for understanding the sentence.  2. Analyze Each Option: Evaluate each possible ending individually. Consider its relevance, logical consistency, and coherence with the context. Think about how each option fits with the main idea and details provided in the context.  3. Compare Against the Context: Cross-check each ending with the context to ensure it fits seamlessly and supports the overall meaning. Eliminate any options that do not make sense or disrupt the flow of the sentence.  4. Reasoning Process: Explain your thought process step-by-step. Consider the context and evaluate each ending thoroughly. Justify why each ending is or isn't suitable, providing clear reasons for your choices.  5. Select the Most Logical Ending: Choose the ending that best completes the sentence in a coherent and meaningful way. Ensure that the chosen ending aligns perfectly with the context and enhances the overall understanding of the sentence.  Format  Context: 
+
+Ending 1: 
+
+Ending 2: 
+
+Ending 3: 
+
+Ending 4: 
+
+Reasoning: Let's think step-by-step to produce the answer. We need to consider the context and evaluate each ending one by one to determine which is the most logical. We should look for consistency, relevance, and coherence in the story.  Answer: The answer to the question given the possible endings provided.  ---  Context: \{context\}  Ending 1: \{ending1\}  Ending 2: \{ending2\}  Ending 3: \{ending3\}  Ending 4: \{ending4\}  Reasoning: Let's think step-by-step in order to...: The task is to reason over context given a question that will require logical deduction. :  Does the llm output answer the question correctly while  the context provided? Ensure that the model adheres to the context while providing a correct answer.  it does give it a 1. If it does not give it a 0.   the answer is that the context is not provided give the answer a 0.  : The task is a question answering task given context that should have the answer.  ---  Follow the following format.  Question: 
+
+Reasoning: Let's think step by step in order to 
+
+Context: 
+
+We ...  ANSWER: the answer to the question given the context provided  ---  Question: \{question\}  Context: \{context\}  Reasoning: Let's think step by step in order to : 
+
+You need to address a question using the given information through logical reasoning.  ---  Use the structure below to deliver a comprehensive and precise answer.  Question: 
+
+Context: 
+
+Reasoning: Let's break this down systematically to arrive at the solution. Begin by pinpointing the essential points in the context relevant to the question. Clearly enumerate each critical point. Then, interpret these points logically, elaborating on how each one aids in establishing a link between the context and the question. Ensure careful consideration of how each point bolsters your argument. Conclusively, infer the answer based on this logical link, ensuring your explanation is consistent, detailed, and specifically addresses the question.  Answer: the answer to the question given the context provided
+
+The task is to choose the correct answer from a list of possible answers on a variety of knowledge questions.  Does the output match the the expected answer?  it does give it a 1. If it does not give it a 0.   does not have to match exactly but it should be close enough that a reasonable human would consider the output to match the expected answer.  sure that the chosen completion is the correct completion.
+
+The task is a question answering task given specific context that should have the answer.  ---  Follow the following format.  Question: 
+
+Reasoning: Let's think step by step in order to 
+
+Choices: 
+
+We ...  Acquire comprehensive knowledge by exploring the prompt» the answer to the question given the context provided  ---  Question: \{question\}  Choices: \{choices\}  Reasoning: Let's think step by step in order to determine the correct response. We need to carefully analyze the information provided in the question and consider all possible options before making a decision. By breaking down the question and examining each choice thoughtfully, we can arrive at the most accurate answer. This approach will not only help us select the correct response but also deepen our understanding of the topic at hand.  Acquire comprehensive knowledge by exploring the prompt» :  The task is to choose the correct answer from a list of possible answers on a variety of knowledge questions. Follow the guidelines below to ensure a logical and accurate response.  ---  Follow this format:  Question: 
+
+Choices: 
+
+Reasoning: Let's think step by step in order to produce the answer. First, carefully read the question to understand what it is asking. Next, analyze the context and identify key pieces of information that relate to the question. Then, evaluate each choice using logical reasoning. Eliminate the choices that do not match the context or are less likely to be correct. Finally, select the best answer based on the analysis.  Answer: the answer to the question given the context provided  ---  Example:  Question: What is the capital of France?  Choices: A) Berlin B) Madrid C) Paris D) Rome  Reasoning: Let's think step by step in order to produce the answer. The question asks for the capital of France. From the context of general knowledge, we know that Berlin is the capital of Germany, Madrid is the capital of Spain, Paris is the capital of France, and Rome is the capital of Italy. Therefore, the correct answer must be Paris.  Answer: C) Paris  ---  Now, let's proceed with the task.  Question: \{question\}  Choices: \{choices\}  Reasoning: Let's think step by step in order to
+
+ The task is to be a chat bot assistant that provides helpful answers to questions.  Act as an impartial judge and evaluate the quality of the response provided by an  assistant to the user question displayed below. Your evaluation should consider how helpful, thoughtful,  and thorough an answer is. Only give perfect answers a 1.
+
+The task is to be a chat bot assistant that provides helpful answers to questions.  ---  Follow the following format.  Question: 
+
+We ...  Answer: the chat bot answer to the question posed by the user  ---  Question: \{question\}  Reasoning: Let's think step by step in order to
+
+Engage with users in a friendly and informative manner to address their inquiries accurately and efficiently.  ---  Follow the following format.  Question: 
+
+We ...  the chat bot answer to the question posed by the user  ---  Question: \{question\}  Reasoning: Let's think step by step in order to
+
+You are a chat bot assistant that provides helpful answers to questions in a personalized, engaging, and conversational tone. Follow the format below to ensure your responses are detailed, structured, and informative. Provide specific examples and offer in-depth analysis to enhance the overall quality of your answers.  ---  Question: \{question\}  Reasoning: Let's think step by step to produce the answer. First, we ...  Answer:  ---  Question: \{question\}  Reasoning: Let's think step by step in order to ...
+
+Prompt engineering for large language models (LLMs) is often a manual time-intensive process that involves generating, evaluating, and refining prompts iteratively to ensure high-quality outputs. While there has been work on automating prompt engineering, the solutions generally are either tuned to specific tasks with given answers or are quite costly. We introduce GRAD-SUM, a scalable and flexible method for automatic prompt engineering that builds on gradient-based optimization techniques.  Our approach incorporates user-defined task descriptions and evaluation criteria, and features a novel gradient summarization module to generalize feedback effectively. Our results demonstrate that GRAD-SUM consistently outperforms existing methods across various benchmarks, highlighting its versatility and effectiveness in automatic prompt optimization. \arraystretch1.5\tabcolsep10ptExample GRAD-SUM optimization run using the GSM8K dataset.tab:prompt_comparisonIntroductionllmAsOptimizersauto_prompt_optim_with_gradient_descenthuman_level_prompt_engineersllmAsOptimizersauto_prompt_optim_with_gradient_descentpromptbreedergripsllmAsOptimizers-.001cmwidth=1\textwidthdiagram.pngAn illustration of one GRAD-SUM training loop. Modules are sequential starting with generation. The prompt chosen in our prompt editor model is then fed back to the generation module and the training loop restarts.fig:diagramauto_prompt_optim_with_gradient_descentauto_prompt_optim_with_gradient_descentauto_prompt_optim_with_gradient_descentauto_prompt_optim_with_gradient_descentRelated Workloraprefix_tuningprefix_tuningautopromptgpt3rlpromptinstructzeropromptbreedergripsllmAsOptimizersgpt4_does_not_know_its_wrongare_llms_good_optimizersLLM_cannot_correct_self_reasoningcriticcriticare_llms_good_optimizersMethodfig:diagramfig:diagramGenerationfig:diagram ``Given the following context: \{context\}. Answer the question \{question\}." Evaluationchain_of_thought ``Does the LLM generated response semantically match the expected answer? If a reasonable human would judge it to, give the response a 1, otherwise a 0." Gradients     ``The model should draw upon the entire context and state its reasoning explicitly." \arraystretch1.2\textwidth!
+
+    Model Performance Comparison for GPT-3.5 and DSPY. We bold the highest final validation rating on equivalent models (GPT 3.5) between our method and DSPY. Our method outperforms DSPY on all use cases and by an average of 6\%.tab:gpt35_dspy_performanceGradient Summarizationauto_prompt_optim_with_gradient_descentPrompt Editorucbwidth=\textwidthgradient_summarization_comparison.pngOur gradient summarization approach outperforms no gradient summarization by 5\%.fig:gradient_summExperiments \& ResultsGSM8Korca_mathneural_bridgehellaswaghotpotqammluvicuna_benchhttps://github.com/rungalileo/prompt\_optimization\_datasetsauto_prompt_optim_with_gradient_descentFigure \ref compares to the method introduced in \citep after extending their work to use LLM-as-a-judge metrics, showcasing the gradient summarization module improves upon their approach.dspytab:gpt35_dspy_performanceGradient Summarizationauto_prompt_optim_with_gradient_descent     ``Reasoning: Let's think step by step to logically deduce the answer. Focus on the relevant information in the context to arrive at the correct answer. Ensure you consider all details, specific terms, and names mentioned in the context, such as the regiment within the Guards Division, the term 'shorts,' the founding year of Image Comics, middle names, the specific crime Brian Nichols was on trial for, and the full names of individuals. Provide a comprehensive response covering all individuals mentioned in the context where applicable." ConclusionLimitationscustomPrompt Optimization ResultsGSM8kTask Description:Evaluation Criteria:Initial prompt for our method \& DSPY:Best Prompt GPT 3.5 (DSPY): Best Prompt GPT 3.5 (Our method)Neural Bridge RAGTask DescriptionEvaluation CriteriaInitial prompt for our method \& DSPY` Best Prompt GPT 3.5 (Our method)HellaSwagTask DescriptionEvaluation CriteriaInitial prompt for our method \& DSPY Context for the question
+
+First possible ending for the question
+
+Second possible ending for the question
+
+Third possible ending for the question
+
+Fourth possible ending for the question Best Prompt GPT 3.5 (Our method)Hotpot QATask DescriptionEvaluation CriteriaInitial prompt for our method \& DSPYBest Prompt GPT 3.5 (Our method)MMLUTask Description:Evaluation Criteria:Initial Prompt for our method \& DSPYBest Prompt GPT 3.5 (Our method) `question`
+
+`choices` MT \& Vicuna BenchTask Description:Evaluation Criteria:Initial Prompt for our method \& DSPY:Best Prompt GPT 3.5 (DSPY): ```ChatBot Assistant:``` Best Prompt GPT 3.5 (Our method):

@@ -1,0 +1,71 @@
+To better transfer the video foundation model learned in the general video domain into the egocentric domain, we collect a broad range of paired egocentric video-text pairs from public video datasets, such as Ego4d~, HowTo100M~, EgoExoLearn~, and Ego4d GoalStep~ by automatic filtering techniques. We do this to ensure a wider range of egocentric data and maintain the pertaining data quality. This results in around 7M video-text pairs. 
+
+In this work, we adopt InternVideo2~, a novel video foundation model that is pre-trained on millions of video-text pairs~.  InternVideo2 is built through a progressive learning scheme, consisting of feature distillation, multi-modal alignment, and vision-language connection. The pre-trained video foundation model thus acts as a strong starting point for the subsequent feature learning process. More details about the foundation model can be found in ~.
+
+We then perform the post-pretraining process and train the model for 5 epochs on the hybrid data in Stage 1 to improve the egocentric video understanding ability. The model is optimized via a standard visual-text contrastive loss.  During training, we also examine the model's egocentric video understanding ability on EPIC-Kitchen-100 zero-shot multi-instance retrieval benchmark~, and the results are shown in Table~.  We term this egocentric video foundation model as , consisting of a strong egocentric video encoder  and a text encoder . 
+
+After stage 2 training, we obtain a video foundation model EgoVideo tailored for the egocentric domain. We use this model to initialize the models in stage 3. In this stage, we conduct task-specific fine-tuning on the training sets. We put the detailed task-specific fine-tuning process of each task in the following section.
+
+Given a video clip and a natural language query, the Ego4D  Natural Language Queries task aims to identify the temporal window corresponding to the query's answer.
+
+Our solution builds upon GroundNLQ and employs our EgoVideo to extract video and text features.  GroundNLQ proposes a multi-modal multiscale transformer encoder module to encode both video and text features and then efficiently fuse them. Following GroundNLQ, we first pretrain on NaQ~ data and then fine-tune on NLQ data. The key driver for this task is Yuping He.
+
+ We leverage ViT-1B of EgoVideo to extract video feature for each snippet, which contains  consecutive frames with interval . The text features are extracted by BERT-Large of EgoVideo.  In the pretraining phase, we set the batch size to 8 and the total epochs to 10, with a warmup of 4 epochs, employing a maximum learning rate of 2e-4.  % We select the best-performing epoch based on the validation split results of NLQ.  In the fine-tuning phase, we set the batch size to 2 and the total epochs to 10, with a warmup of 4 epochs, with a maximum learning rate of 5e-5. 
+
+Table~ presents the results of NLQ.  and  employ identical model and training strategy, while our single model's features( ) significantly outperform the ensemble of EgoVLP and InternVideo().  combines predictions from GroundNLQ, GroundNLQ*, and GroundVQA~. GroundNLQ* is a variant of GroundNLQ, distinguished by the integration of a cross-modal layer within the encoder. GroundVQA leverages a large language model to encode visual and language features. Ensemble methods further enhance performance.
+
+Step grounding aims to identify the temporal segment in an untrimmed egocentric video corresponding to a given natural language description of the step.
+
+Similar to NLQ, we use GroundNLQ as the grounding model for Step Grounding and adopts EgoVideo to extract video and text features. The key driver for this task is Yuping He.
+
+ We adopt the consistent configurations with NLQ for feature extraction. During the fine-tuning phase, we use a batch size of 8, apply dropout with a probability of 0.2, and set the drop path rate to 0.2. Other hyperparameters remain the same as in NLQ.
+
+Table~ displays our results on Step-Grounding. The official baseline uses VSLNet as the grounding model and Omnivore features. In contrast, our solution leverages stronger video and text features along with advanced grounding models, resulting in notable improvements. After ensembling results from GroundNLQ and GroundNLQ, we achieve further gains.
+
+Given an egocentric video and a specific action category, Moment Queries task aims to retrieve all temporal segments corresponding to this action category. The action categories are pre-defined and specific to first-person activities.
+
+We adopt ASL~ as our task-specific solution.  ASL divides the task into two subtasks: classification and localization. It incorporates an action sensitivity evaluator module to assess the significance of each frame relative to the action, guiding the learning process for each subtask. The key driver for this task is Kanghua Pan.
+
+ For further enhancing vision-only performance, we finetune the video encoder of EgoVideo-V on MQ data and the resulting model is termed as EgoVideo-MQ. Consistent with the configuration of NLQ and GoalStep, we adopt EgoVideo-V and EgoVideo-MQ to extract two types of video features.  InternVideo, EgoVideo-V, and EgoVideo-MQ features are all projected to 512 dimensions, and other hyperparameters remain consistent with ASL. 
+
+Table~ displays the results for MQ. Comparing  and , our single model's features outperform the ensemble of EgoVLP and InternVideo, demonstrating the superior performance of EgoVideo.  combines InternVideo with EgoVideo-V features.  Specifically, we project each feature and concatenate them.  incorporates InternVideo with EgoVideo-MQ features.   combines predictions from  and  by averaging the output logits for classification and localization from each model.  Compared with ASL, our solution leverages multiple complementary features and achieves better results.
+
+Short-term object interaction anticipation task aims to predict the next human-object interaction happening after a given timestamp . Given an input video, the model is required to anticipate at what time and in what location, what kind of object interaction will happen. 
+
+We choose to use Stillfast  as our downstream solution.  This approach separately extracts high-resolution, low-frame-rate image information and low-resolution, high-frame-rate video information, and then fuses them to obtain multi-modal spatio-temporal features. Stillfast  uses X3D-M  as the backbone for video feature extraction.  We replace the X3D-M with our stronger VideoEgo-V. Differing from the original Stillfast framework which fuses multiple multi-scale intermediate layers of X3D-M (fast) and ResNet (still), we interpolate the last layer feature map of VideoEgo-V into different sizes and fuse them into the multi-scale still features generated by ResNet. The key driver for this task is Guo Chen.
+
+We adopt the training setup consistent with Stillfast. The difference is that we set the drop path rate to 0.3, and layer-wise lr decay to 0.9. Meanwhile, we enable BF16 for stable training.
+
+Table~ displays the results for Short-term object-interaction anticipation on the test set. The results indicate that our EgoVideo-V is also suitable for direct transfer to forecasting tasks. In particular, the predictions of Verb and TTC are challenging to substantiate with direct evidence and often rely on advanced cognitive reasoning abilities.
+
+Long-term action anticipation is a task that aims to predict multiple future actions following a given action. Each action is composed of a verb and a noun. Given an input video up to a particular timestamp, which corresponds to the last visible action, The goal is to predict a list of the twenty subsequent actions. 
+
+Recent methods  leveraging Large Language Models (LLMs) have shown superior performance in LTA tasks by converting video actions into natural language sequences, which LLMs then use to predict future actions.  For LLM-based methods, better classification prediction and stronger LLM intuitively bring stronger language comprehension and prediction capabilities. The key driver for this task is Yicheng Liu.
+
+Previous methods typically used video encoders like EgoVLP or CLIP combined with a Transformer-based classification head to obtain verbs and nouns. We simply finetune EgoVideo-V on LTA data to replace the previous classification predictions with our better inference results.
+
+We employed the Vicuna-7B  model as the LLM. During fine-tuning, we fixed the historical action sequence length to 8 and used the subsequent 20 actions as labels.  We used EgoVLP  to extract features and augment the training set.
+
+ Following , during the fine-tuning phase, we set the learning rate to 3e-4, gamma to 0.85, batch size to 32, and the number of epochs to 3 for all models. We also use LoRA  to improve the speed and efficiency of fine-tuning.
+
+ Table  shows the accuracy of action recognition on the validation set.  The results reveal that our EgoVideo-V can achieve better prediction for the next long-term anticipation.
+
+Table  shows the LTA results on the validation and testing set. The table shows that classification results of EgoVideo-V achieved significant improvements in anticipation performance compared with EgoVLP , when using LLaMA2-7B for anticipation. Furthermore, we tested various LLMs, including LLaMA2-7B , LLaMA3-8B, Vicuna-7B , Vicuna-13B, and Mistral-7B . The Vicuna-7B demonstrated significant performance improvements.
+
+ Action recognition considers a short video clip and requires the model to predict the verb/noun/action classes of the action in this segment. The evaluation metric includes Top-1/5 Accuracy. 
+
+Following prior works~, we train our model for 100 epochs on the training set with a learning rate of 1e-5 and batch size of 48.  We conduct warm-up training for 2 epochs using the cross-entropy loss. The model is trained on 16 A100 GPUs.
+
+ Table~ present fine-tuned model's performance on EK100 action recognition. The results reveal significant advancements with our proposed method, surpassing state-of-the-art approaches in both Verb/Noun/Action top-1 scores.  Our single EgoVideo-V achieves 72.9\%/68.7\%/56.2\% Verb/Noun/Action top-1 scores on the test set. This is far ahead of that last challenge champion whose ensembled Verb/Noun/Action top-1 results is 71.7\%/65.8\%/54.3\%. After ensembling three different models, our EgoVideo-V further achieves slight improvement +0.2\%/+1.1\%/+0.6\%, and the final testing results are 73.1\%/69.8\%/56.8\%. Overall, the results underscore the effectiveness of our approach in enhancing the understanding of daily human activities captured in egocentric views, highlighting its potential for advancing research in activity recognition domains.
+
+The primary objective of Epic-Kitchen Multi-Instance Retrieval task is to develop models capable of accurately retrieving relevant video segments from the Epic-Kitchen-100 dataset given a query in the form of a textual description of the action or activity. The evaluation metric includes Mean Average Precision (mAP) and normalized Discounted Cumulative Gain (nDCG). More detailed information can be found in~. 
+
+Following prior works~, we train our model for 50 epochs on the training set with a learning rate of 1e-5 and batch size of 8. We conduct warm-up training for 1 epoch using the classic video-text contrastive loss. The model is trained on 8 A100 GPUs for 12 hours. 
+
+ Tables~ and ~ present zero-shot and fine-tuned model's performance on EK100 multi-instance retrieval.  Comparative analysis revealed significant advancements with our proposed method, surpassing state-of-the-art approaches in both mAP and nDCG scores.  As shown in Table~, the zero-shot performance of our stage 2 model (after post-training) reveals strong retrieval performance, compared with EgoVLP and LaViLA, indicating the strong performance of our backbone model and the effectiveness of the multi-stage training strategy. Through task-specific training, our model achieves 63.3\% and 73.2\% average mAP and nDCG, respectively, exhibiting substantial improvements in both text-to-video and video-to-text retrieval tasks. This indicates superior performance in capturing fine-grained action semantics within the kitchen domain.  Overall, the results underscore the effectiveness of our approach in enhancing the understanding of daily human activities captured in egocentric views, highlighting its potential for advancing research in activity recognition and video retrieval domains.
+
+ Domain Adaptation is defined by  utilizing a labelled source domain to train an action recognition model that is capable of adapting to an unlabelled target domain. According to the data source~, this task poses additional challenges due to the discrepancy in location, hardware, and long-term temporal offsets. The evaluation metric includes Top-1/5 Accuracy. 
+
+Similar to the training setting of action recognition, our approach differs in that we only train the model on the source domain.
+
+ Tables~ present model's performance on EK100 domain adaptation action recognition. Notably, our model is only finetuned on the source domain, achieving 61.3\%/56.2\%/43.2\% Verb/Noun/Action top-1 performance that is much higher than the previous leading results 58.2\%/40.3\%/30.1\%. This highlights superior performance improvement brought by well-pretrained models.

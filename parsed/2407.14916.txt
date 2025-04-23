@@ -1,0 +1,95 @@
+Current practice finetunes language models to make them consistent with a dataset of human preferences~. As noted by earlier works on learning from human feedback, however, ambiguous preference judgments present a major challenge:
+
+This ambiguity manifests itself with agreement rates as low as  between human annotators on binary preference queries . One way to understand this difficulty appeals to a distinction drawn by Amartya Sen:
+
+Many, perhaps most, preference queries ask the annotator for a non-basic preference judgment, in that certain contextual information might effectively reverse the judgment. For instance, the preferred response to a technical question may depend on the user's education level, the preferred response to a medical question may depend on whether the user is a doctor, and the preferred response to a question about etiquette may depend on the user's geographical location. If we train models using non-basic preference annotations, the contextual biases and assumptions underlying those judgments may be implicitly embedded into the model .
+
+Rather than rely on annotators to integrate the correct distribution of contextual assumptions, and rely on the training process to consistently aggregate any disagreements in a singularly aligned model, one might instead consider an explicit context-aware approach to preference modeling (). This approach first (partly) resolves ambiguity by specifying a context, and then models context-specific preference. This is not a new idea; Ziegler et al. , quoted above, continue to remark that, ``'', and many have advocated for fine-grained, context-conditioned, or otherwise more ``pluralistic'' approaches to alignment .
+
+However, while production systems recognize the importance of incorporating context---the most notable being the ``system prompt'' introduced by OpenAI in 2023 and adopted by others ---there has been little published research on the context-aware preference modeling capabilities of language models.   This paper works toward filling this gap by introducing the reasonable preference reversal (RPR) datasets alongside context-augmented versions of existing datasets, and testing the context-specific preference modeling capabilities of existing models.
+
+This discussion is summarized in  alongside other key benefits of context-aware preference modeling. This paper focuses on evaluating and improving context-aware preference modeling capabilities, leaving an in-depth exploration of the benefits to future work.
+
+Modeling human preferences traces back to Luce  and Bradley-Terry . It made its way into finetuning language models via a line of work originating in reinforcement learning , and has now become the dominant approach for finetuning language models to follow human instructions~. While this approach has achieved remarkable results and enabled the performance of state-of-the-art models, several authors have pointed to its limitations~, which include the ambiguity problem that motivates our work. Notably, recent works have identified shortcomings that arise from implicitly aggregating diverse perspectives with a single choice rule~. In particular, Siththaranjan et al.  have recently shown the standard Bradley-Terry approach (, left), implicitly uses the Borda rule to aggregate preferences across hidden contexts, and proposed to learn distributional reward models as a way to account for this. Rather than leave hidden context implicit in a distributional model, which does not resolve the indeterminate preference problem highlighted by our RPR datasets (see ), we propose to make context explicit, either via specification or inference. Given a preference problem that has been decomposed into contexts and context-specific preferences, as described in , we can then choose to apply the Borda rule  an alternative such as an expected utility aggregation~ or jury learning  (see ``distributionally pluralistic models'' in Sorensen et al. ). 
+
+Modeling diversity and disagreement among human annotators and the inconsistency of human preferences have been treated from a number of different perspectives . Our work is similar to others that decompose a single objective into multiple dimensions such as helpfulness, harmlessness, and truthfulness . This approach has also become common in the literature on summarization, where multi-dimensional evaluation criteria are well recognized, with common dimensions including conciseness, coherence, consistency and fluency  . However, our work () and others  find that current models often ignore or confuse added context.  Preferences driven by diverse individual principles have been aggregated within frameworks such as Constitutional AI , and alternative approaches to aligning models with human preferences, such as AI safety via debate  and consensus based approaches , can be understood as ways of supervising the context or assumptions underlying preference rather than the preference itself. 
+
+Finally, our work is closely related to context-conditioned generation, e.g., via a system prompt. In a concurrent work, Lee et al.  have synthesized a dataset of diverse system prompts for finetuning generative models. Their dataset includes multiple system prompts for the same user prompt, which allows it to be used in a similar fashion as our RPR datasets. We use their dataset for evaluation in , and provide an ablation on different training set compositions in .
+
+We model the user- interaction using an intent-utility formalism , where  is the space of intents,  is the space of prompts,  is the space of completions, and  is a scalar utility function.  We follow the standard assumption and assume that preference in this model is made according to the Bradley-Terry model . Letting  be the logistic function, this defines the probability of preferring completion  to  given a specific intent  as: % In our model the primitive definitions of preference and utility are conditioned on the intent rather than the prompt. To prompt the model, a user with intent  selects a prompt . To annotate a preference query , an annotator implicitly infers intent  from  and samples a preference from the Bernoulli distribution . 
+
+Both users and annotators may possess or infer a  of intents. Indeed, we would argue that annotation for most preference queries involves a distribution of intents rather than a specific intent. We use ``intent'' to refer to both specific and distributional intents. We assume there exists a base distribution over possible intents , as well as a conditional distribution over prompts given intents , so that any prompt  has a natural inference distribution . In this model, the prompt  is a partial specification of intent . While a prompt may never be able to fully specify the intent, we may add some additional information or context  to obtain an extended prompt . Let us suppose that , where  corresponds to a discrete partition of .
+
+One way to measure utility and preference with respect to a distribution  of intents is with an expected utility model, which computes utility as .  While it has been shown that standard RLHF does  align with the expected utility model , this model satisfies certain desirable axioms, which one can argue would apply to ``ideal'' preference annotation.  % We use the expected utility model to define , and note that for any context partition , this implies .  For convenience, we define , which also decomposes linearly: . 
+
+During RLHF, we are presented with a dataset of prompt-preference tuples, , which we use to learn utility estimator  (conventionally known as a ``reward model''). As was assumed for  and , we would like there to be a model  that satisfies the relation:
+
+In standard RLHF, we never learn such . However, for purposes of this analysis, we will assume this  exists, either implicitly given , or explicitly, such that given some , we compute  via  rather than via direct evaluation. Below, we will favor the latter interpretation.
+
+For a given preference estimator ,  is only unique up to constant shifts, so to measure the accuracy of , we will instead compare  and estimator .
+
+Consider now the absolute error  for a particular preference query, and use  as shorthand for . For any  we have the following bound:
+
+where the second equality adds and subtracts  and rearranges, and the final line uses the triangle inequality (multiple times).
+
+ applies given a distribution of contexts, but in many cases, we might assume there is a specific context  (i.e., ) and make a single context prediction  (i.e., ). This simplifies  and gives us the context decomposition upper bound for a  context:
+
+Both the general bound () and specific bound () formalize the following intuitive claim: if we can make accurate predictions given the true context (or context distribution), then we can reduce the preference modeling problem to a context inference problem.
+
+The upper-bound in  bounds the total error in terms of a context-weighted prediction error and a preference-weighted inference error. On one extreme, we have  (standard preference modeling), so that the context inference error is zero and the prediction error exclusively depends on the preference prediction problem given the prompt. On the other hand, we have  (e.g.,  might be ``The preferred response is .'') and our preference prediction error is zero, but the context inference problem becomes equivalent to generation. In between, we conjecture that there is a smooth trade-off between prediction error and inference error. This might be the case, for example, if a single context could apply to and disambiguate a range of different preference queries. We consider this in our experiments and find some support for the conjecture, in that conditioning on specific criteria outperforms conditioning on more abstract, yet still rather specific scenarios () which outperforms conditioning on a user profile that applies to all preference queries at once (). 
+
+If our model  is very good at predicting preference given some additional context , the preference modeling problem can be largely reduced to a context inference (or specification) problem. In this case, rather than have annotators rank completions for ambiguous prompts, it may make sense to spend the annotation resources to specify additional context. Such annotations could then be used to train a context inference model that disambiguates prompts. Intuitively, we hypothesize that the cardinality of the space of contexts is smaller than the cardinality of the space of possible completions given a prompt, which would make joint context-preference annotation a data-efficient alternative to just preference annotation. Although our focus is on improving context-aware preference modeling, our experiments with user profiles () provide some support for this hypothesis.
+
+The effectiveness of the above proposal hinges on accurate context-specific prediction. Are language models sensitive to added context?  and contributes datasets to help us (1) evaluate it on real data, and (2) train better context-conditioned reward models.
+
+ We report results for a selection of primarily open source models, detailed in . These include two unconditioned reward models (UltraRM  and Mistral RM ), one context-aware preference model (Prometheus-2 ), our finetuned context-aware reward model (Mistral~), and a set of generative models (four Llama 3 models  and GPT-4 Turbo ) used with an ``llm-as-a-judge'' approach. In preliminary experiments we tested a several other models and observed similar patterns across all models. All models except Prometheus-2 are used as reward models, by first evaluating each alternative individually and then comparing scores.
+
+ Besides the RPR datasets detailed in , we use the following preference datasets:
+
+Importantly, we  the HHH, Reward Bench, and Chatbot Arena datasets with additional context to create context-conditioned versions, as described below and in .
+
+ display the agreement (or accuracy) of predicted preference with the dataset.  
+
+ Our prompts are detailed in . 
+
+For the context-aware approach to work well, models  be sensitive to added context.   shows the performance of tested models on RPR Criteria, RPR Scenarios, Preference Bench, and Multifaceted Bench. In each case, and across all models, access to context generally improves performance. Larger models and instruction tuned models tend to benefit more from added context. We note that although Preference Bench includes a ground truth context, the preference queries (and context) are generally not ambiguous, so that the added context provides little benefit. 
+
+Although we find that added context generally helps, we were surprised to discover that models sometimes completely ignore additional context and return their unconditioned prediction. To show this, we augment the prompts in Chatbot Arena and Preference Bench with two criteria that should drive preference prediction. The first is a  criteria,~i.e. ``'' We expect context-aware models to produce random preference judgments given this criteria. The second is a  criteria,~i.e. ``''). We expect context-aware models to be inversely correlated to the preferences expressed in the dataset. % shows the performance of tested models with these adversarial criteria. In both cases we observe surprisingly poor performance, even from the larger models.  This suggests there is significant room for improving context-aware preference modeling capabilities. 
+
+We finetune a context-aware version of Mistral RM on roughly 34,000 samples from the training sets of RPR Criteria, RPR Scenarios, and Ultrafeedback . Details may be found in . In , our finetuned  shows markedly better context-specific performance than its base model, matching or exceeding that of GPT-4 Turbo and Llama 3 (70B).
+
+In , we test whether our context-aware preference models generalize to real preference datasets. To do so, we augment three unconditioned preference datasets (HHH, Reward Bench, ChatBot Arena) with contextual information (see  for more detailed information). For HHH and Reward Bench, we specify the context as a function of each subset included in the dataset. This approach is similar to using a ``system prompt'' when prompting GPT-4, and would be most suitable for real world applications where the designers possess relevant domain knowledge. For Chatbot Arena, given the lack of ground-truth contexts, we use GPT-4 to generate a possible context given the prompt and alternatives (CTX).  Additionally, we infer the context by looking at the prompt together with the expressed preferences (CTX), which endows the context with privileged information about preference data. This may be useful for inferring a useful persistent context such as a user profile, which we explore further below.
+
+In our experiments so far, we operated in a setting where each prompt has an associated context. However, when eliciting preferences from users, the hidden context of a specific user will impact their preference information across all the prompts they are presented with. In order to create a scenario closer to this setting, we first generate 5 synthetic diverse user profiles and condition GPT-4 Turbo on each profile to label the RPR test set (see ).  Having relabeled the RPR test set with these preferences, we explore the ability of tested models to recover the expressed preferences from the profile, as shown in . Our  and the larger Llama 3 Instruct model perform best on this task, recovering approximately 80\% agreement with GPT-4's labels.  
+
+Additionally, in , we test the performance of our context-aware model when profiles are inferred with limited preference samples. Profile inference is done by prompting GPT-4 (see ). Without any profile inference (No Context / NC), the default assumptions made by our model run against the preferences of Profiles 3 and 4; however, this is resolved in as few as 2-4 samples. While this depends on the underlying data distribution, 16-32 samples recover most of the benefit of the ground truth context on this dataset.
+
+To make the RPR profiles extension of RPR, we sample 20 sets of 20 random samples from the training set (assigning the preference for each sample at random). We use these samples to seed an initial sample of 20 profiles, each of which we infer from 20 samples using GPT-4 Turbo and the following profile inference prompt:
+
+Having generated 20 profiles, we use them to evaluate preference on 40 samples, using the inference prompt below. We run each sample twice with the completions in alternating order as we noticed some order bias:
+
+We then filter the 20 profiles down to 16, as 4 of the profiles showed <80\% agreement in preference when the order of the completions was switched. Then, we measure pairwise distances between the remaining 16 profiles according to the 40 evaluated samples, and choose a subset that has sufficient minimum pairwise difference (we were able to obtain over 0.2). This produced the profiles listed in , which we then use to label the entire RPR test set for use in the experiments. 
+
+For completion, we finetune the base Mistral reward model using two additional preference datasets for which criteria are available. 
+
+First, the Preference Collection (), which serves as a training set for Preference Bench (introduced and used in ), can be used for finetuning a criteria aware reward model. 
+
+Second, in a concurrent work, Lee et al.  have synthesized a dataset of diverse system prompts for finetuning generative models, which they call the Multifaceted Collection (). As the dataset includes multiple system prompts for the same user instruction, its structure allows it to be used in a similar fashion to our RPR datasets, in order to finetune a reward model. 
+
+Using the hyperparameters described above, we finetuned the base model using the following data mixtures:
+
+The results on context-specific and context-augmented datasets are shown in .
+
+To augment the datasets, we use the following approach / prompts.
+
+For HHH, we specify the following subset specific contexts:
+
+For Reward Bench, we specify the following subset specific contexts:
+
+To synthesize the ``CTX'' contexts for Chatbot Arena, we use the following prompt (note that only the criteria was used as the context, not the teacher's preference):
+
+To synthesize the ``CTX'' context for Chatbot Arena, we use the following prompt:
+
+The maximum pairwise agreement between the two profiles on the RPR test set was under 80\%. Details of how these profiles were created are in .
+
+See  (we use the same prompt for inferring profiles from data as was used to synthesize the ``ground truth'' profiles).

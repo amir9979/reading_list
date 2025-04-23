@@ -1,0 +1,103 @@
+Given a pre-trained large language model (LLM)  as initialization, Reinforcement Learning from Human Feedback (RLHF)  aims to learn an LLM  that aligns with human values and preferences. Specifically, let  be the query,  be the output of , and  be a reward function that evaluates the performance of  given , RLHF tries to maximize  while ensuring that the trained LLM  does not deviate significantly from the pre-trained model . This can be formulated as the following optimization problem :
+
+where  is the Kullback-Leibler divergence between  and , and  is a constant.
+
+Since  is unknown, the user needs to provide a set of preferences , where  (resp. ) is the positive (resp. negative) response for query . A suitable model, typically another LLM (parameterized by ) , then learns the reward function by maximizing the probability  that  is preferred over  (denoted ) . Typically, this probability is defined by the Bradley-Terry preference model  as:
+
+where  is the logistic function. The optimal  can then be obtained by maximizing the log likelihood 
+
+With the obtained , we can then find  by optimizing ().
+
+In RLHF, the reward model is represented by a LLM . This can be time- and memory-expensive. It is observed that the optimal  in () indeed has the closed form :  and so
+
+where , and  is the set of responses. By plugging this into (), the optimal policy can be found directly by maximizing:
+
+DPO aims to maximize (). However, our goal is to maximize the preference rather than the reward . Consequently, a better option is to maximize the preference probabilities . To this end, IPO  optimizes the following objective:
+
+Similar to DPO, following ,  the optimal  also has a closed-form solution:
+
+The loss for IPO is then defined as:
+
+The proposed method is also related to self-alignment~, which uses the LLM's own knowledge to improve the alignment. For example, self-judgement  uses the LLM as a judge to evaluate the generated answer. Self-improving  improves LLM by playing game with another LLM opponent. Our work uses the self-alignment ability of LLM to construct a refinement function to adjust the quality of responses.
+
+Let  and  be the true and learned reward function respectively. For any tuple , the true reward of the positive response  should exceed that of the negative response , i.e., . Consider two tuples  and . When , we prefer , and so  from (). In other words, the more informative tuple  should be more important. However, RLHF simply maximizes (), which considers all tuples in the dataset  equally.
+
+To alleviate this problem, we propose adding a  function  (where  and  are the sets of queries and responses, respectively) to adjust , so that problem () is modified to:
+
+where  is a positive constant. Intuitively, when  is large,  becomes small, and the optimization in () will tend to enlarge the "distance"  between the positive and negative responses. Thus, for two tuples  and  corresponding to the same query , we want to design a  such that when , their true reward values satisfy:  In other words, a larger difference  in the true reward values between the positive and negative responses corresponds to a larger , and vice versa. However, obviously the difficulty is that we do not have access to . 
+
+First, we assume that the LLM is capable of learning a reward function that aligns with the true reward function. This premise is formalized as follows:
+
+As  is unknown, with a capable LLM, a natural idea is to use  as a proxy of . Recall from Section~ that a large  should correspond to a large . Using (), one can define  as 
+
+Substituting this into the DPO objective (), we have
+
+However, this is the same as the original DPO objective except for a scaling of the regularization parameter , and thus is not useful.
+
+To alleviate this problem, our idea is to first improve the LLM performance by concatenating the query  with a prompt , as , where  denotes concatenation. With () the reward with this prompt-augmented query is:
+
+With a good prompt, this  is expected to be a good proxy of . Specifically, we use the following prompt .
+
+We assume that adding this prompt does not change the preference between the positive and negative responses ( and ). 
+
+Analogous to (), we consider the following refinement function:
+
+Note that we have added subscript  to explicitly indicate the dependence of  on . Obviously, when putting this  into the DPO objective (), it does not suffer from the same problem as the  discussed earlier.
+
+The following Proposition shows that  in () satisfies two important properties. First,  can be measured relative to the optimal response , which allows to represent  in terms of  and . Second, the positive response (which has a higher true reward value) is ``closer" to  than the negative response, and vice versa. All the proofs are in Appendix~.
+
+The following Corollary shows that this  satisfies the desired property in Section~, namely that a larger difference  in the true reward values between the positive and negative responses corresponds to a larger .
+
+First, we show how to integrate the proposed refinement into DPO. Substituting () and () into (), we obtain:
+
+Recall that  above depends on . During learning, we use the stop-gradient operator  on to prevent it from being changed. The whole procedure, which will be called Self-refined DPO (Sr-DPO), is shown in Algorithm .
+
+For IPO, we first construct a variant of the IPO objective in ():
+
+which adds an extra  term to maximize the expectation of reward .
+
+Note that when ,  should be infinite. This implies maximizing  w.r.t, , which has a similar form to DPO. The procedure, which will be called Self-Refined IPO (Sr-IPO), is shown in Algorithm . It uses stochastic gradient descent to minimize the difference between the LHS and RHS in ().
+
+. We evaluate the effectiveness of the proposed methods on three widely-used benchmark datasets: (i) MT-Bench , which is a multi-turn question set on writing, roleplay, extraction, reasoning, math, coding, knowledge I (STEM), and knowledge II (humanities/social science). (ii) Vicuna-Bench , which is a single-turn question set on writing, roleplay, generic, fermi, counterfactual, coding, math, and knowledge. (iii) Open-LLM leader-board , which includes (a) commonsense reasoning: Arc , HellaSwag , WinoGrande ; (b) multi-task language understanding: MMLU ; (c) human falsehood mimic: TruthfulQA ; and (d) math problem solving: GSM8k . Table  shows more information on the Hugging-Face Open LLM Leaderboard datasets. 
+
+As in , we use Pythia 2.8B , a pretrained LLM without supervised fine-tuning and RLHF, as the backbone model. Following , we first conduct supervised fine tuning (SFT) using the HH-RLHF dataset , which is human preference data on helpfulness and harmlessness based on positive feedbacks. We then perform direct alignment using the HH-RLHF dataset on the SFT model. Finally, we follow  to use GPT-4~ as a judge to evaluate the testing performance of the direct alignment trained model. For performance evaluation, we use the win-rate, tie-rate, and lose rate as in .
+
+Following , we use zephyr-7b-sft-full, a supervised fine-tuned version of Mistral 7B , as the basic model. We directly perform direct alignment using a large-scale diverse preference dataset Ultra-feedback . The fine-tuned model is then evaluated on the testing benchmarks via the platform~.
+
+Following , we use three performance metrics: 
+
+i) Average marginal: , which measures the gap between positive and negative responses.
+
+(ii) Accuracy: ,  which measures the number of tuples with the reward of a positive response larger than that of the negative response. Here,  returns 1 when the argument holds and 0 otherwise. 
+
+(iii) Accuracy defined on the prompt-augmented tuples:   , which measures the accuracy for tuples with input augmented by the prompt.
+
+We choose two widely-adopted direct alignment baselines: (i) DPO , and (ii) IPO . Following ,  is set to 0.1 for DPO and IPO. We also set  for the proposed Sr-DPO and Sr-IPO for fair comparison. We select the optimal  from  on the first 50 tuples from the HH-RLHF testing dataset. For both the HH-RLHF and UltraChat datasets, following , the learning rate is , the optimizer is RMSprop , the batch size is 64, and we also use gradient normalization to help training. The maximal input token size in training is 512. All experiments are performed on 8 A100 GPUs, and we use fully sharded data parallel~ for distributed training.
+
+Table  shows the testing win/tie/lose rates of the various methods as evaluated by GPT-4. As can be seen, the proposed Sr-DPO and Sr-IPO are effective and outperform DPO and IPO (in other words, the win rate is larger than the lose rate) in both MT-bench and Vicuna-bench. This reveals the effectiveness of our proposal methods. Some examples are also shown in Appendix .
+
+Figure  shows results on the training set. As seen, the proposed Sr-DPO and Sr-IPO have lower marginals (Figures~ and ), while maintaining comparable accuracies (Figures  and ). This shows they avoid always enlarging the reward difference between positive and negative pairs, yet still achieving high accuracies. From Figures  and , we find that accuracies for the prompt-augmented tuples are similar to those for the original tuples, thus verifying Assumption .
+
+Table  shows the testing performance across various methods. The results indicate that Sr-DPO achieves superior performance on Arc, TruthfulQA, WinoGrande; while Sr-IPO excels on GSM8k and MMLU. Overall, Sr-DPO emerges as the most effective method. Furthermore, Sr-DPO  (resp. Sr-IPO) consistently outperforms DPO (resp. IPO) across all six datasets. These results validate the effectiveness of the proposed approach.
+
+Figure  shows the testing win rate with varying  in Sr-DPO (resp. Sr-IPO) on MT-Bench and Vicuna-Bench. In both cases the win rate first increases with  and then decreases. In particular,  (i.e., not using the proposed refinement) leads to the worst performance. However, a  too large exaggerates the influence of , which can also negatively impact performance. We do not study its effect on Open-LLM leader-board because it is very time-consuming.
+
+Figure  shows the testing win rate with varying number of training tuples on Vicuna-Bench. As can be seen, both Sr-DPO and Sr-IPO can benefit from the use of more training tuples.
+
+Figure~ shows the testing performance with varying number of training tuples on Open-LLM leader-board. As can be seen, DPO and IPO exhibit performance drop with the use of more training tuples on 4 of the 6 tasks (except on MMLU and HellaSwag), suggesting potential overfitting. In contrast, Sr-DPO and Sr-IPO are less prone to overfitting and exhibit improved performance with increased training data on ARC, TruthfulQA, GSM8k, and MMLU. 
+
+Recall that GPT-4 is used as the evaluator. For each instance , we define the score difference between the corresponding positive  and negative  responses as , where  (resp. ) is GPT-4's evaluation score (0-5) of  (resp. ). Inspired by , which uses correlation to measure the agreements between GPT-4 and testing LLMs, here we compute the correlation between the marginal  and score difference  over 200 random tuples from the Ultrafeedback-binarized-preferences dataset (which already contains 's and 's). In particular, we use (i) Pearson's correlation~, which measures linear relationships; (ii) Spearman's rank correlation~, which measures monotonic relationships; and (iii) Kendall's Tau~, which evaluates the strength and direction of associations.
+
+Table  shows the correlation. As can be seen, Sr-DPO (resp. Sr-IPO) exhibits higher correlation values compared to DPO (resp. IPO). This suggests that Sr-DPO and Sr-IPO can evaluate the qualities of the positive and negative responses more accurately.
+
+Table  shows the direct alignment training time on the HH-RLHF dataset. As can be seen, Sr-DPO and Sr-IPO are about  slower than DPO and IPO. We consider this acceptable given the performance improvements achieved by Sr-DPO and Sr-IPO.
+
+As in , the closed-form solution of () is:
+
+Similarly for , we have
+
+After simplification, we have:
+
+Note that . After some simplifications, we have
+
+As  , after taking expectations of both sides, we obtain

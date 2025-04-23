@@ -1,0 +1,89 @@
+We evaluated our method on MiniGPT-4~ and LLaVA~, two commonly used, open-source, multi-modal, instruction-following language models that were publicly available at the time we performed these experiments.  The underlying VLMs are Vicuna 13B and Llama-2 13B, respectively.  We consider different versions and model sizes in our transferability experiments (see Section~).
+
+We selected the following  meta-objectives:
+
+We picked these meta-objectives because they are amenable to systematic evaluation.  For each objective from this list, it is possible to automatically check whether a given output satisfies it, using either an evaluator model or another LLM.
+
+% To measure the efficacy of our attack, we selected meta-instructions with available evaluators. We employ evaluators from the most downloaded text classification models on Hugging Face model hub. 
+
+We employ the following models for our evaluation. % %  \item {Sentiment analysis model.}} %  \item {Formality classification model.}}%  \item {Language detection model.}}%  \item {Political bias classification model.}} We use this model to validate the synthesized dataset, and use ChatGPT for evaluating instruction alignment.% We randomly select 5 images (and their labels) from ImageNet~.  For each image, we generate 60 questions as described in Section~.  For each question and meta-instruction, we generate the response that satisfies the corresponding meta-objective by explicitly instructing the model.  The question-answer dataset associated with each meta-instruction is split into 40 for training and 20 for testing.
+
+We compare our attack with two baselines:
+
+To evaluate whether our perturbations preserve the visual content of images, we employ the following methodology: %  Unless specified, image soft prompts are trained at maximum perturbations of ,  iterations, step size , and batch size of 8.  We use the default hyperparameters for the target VLM during inference and evaluation.
+
+%----table 2% OLD TABLE% %----table 2% %----table 3% OLD TABLE% %----table 3% [htb]%  \centering%  %  %  %  We use a single A40 or A6000 48G GPU to train and evaluate each image soft prompt on MiniGPT-4, which takes approximately 3.5 hours per image. We use two A40 or A6000 48G GPUs for the same task on LLaVA, which takes approximately 1.5 hours per image.
+
+%---subsec 5.2---
+
+Table~ reports our attack success rates, i.e., how well the responses induced by our images follow the corresponding meta-instructions against LLaVA and MiniGPT-4.   These results show that all ten meta-instructions achieve results comparable to explicit instructions. 
+
+For some meta-objectives, such as political bias and informal text, spam, and URL injection, even explicit text instructions do not achieve a high success rate.  We attribute this to the limitations of our target VLMs in following certain instructions.
+
+Interestingly, in some cases (indicated in bold in Table~), .  For example, both MiniGPT-4 and LLaVA do not follow explicit instructions to produce outputs that contain adversary-chosen spam or specific URLs, yet when equivalent meta-instructions are added to images trained as soft prompts, Minigpt-4 includes spam (respectively, adversary's URLs) in the outputs for 56\% (respectively 30\%) of the images.  LLaVA includes spam (respectively, adversary's URLs) in the outputs for 91\% (respectively 67\%) of the images. As mentioned in Section~, we conjecture that instruction-tuning of these models on image-description prompts suppressed some of the instruction-following capabilities of the underlying LLM.  Our images, acting as soft prompts, ``unlock'' these capabilities.
+
+% Interestingly, in some cases (indicated in bold in Table~), .  For example, LLaVA does not follow explicit instructions to produce outputs in French or Spanish, yet when equivalent meta-instructions are added to images trained as soft prompts, LLaVA produces French (respectively, Spanish) outputs for 52\% (respectively 32\%) of the images.  As mentioned in Section~, we conjecture that instruction-tuning LLaVA on image description prompts suppressed some of the instruction-following capabilities of the underlying LLM (Llama).  Our images, acting as soft prompts, ``unlock'' these capabilities.
+
+In Table~, we measure the similarity between clean and perturbed images using the cosine similarity of the image-encoder embeddings and SSIM. 
+
+% We evaluate image semantic preservation by comparing our method against three baselines. 
+
+First, we calculate the average similarity between unrelated images randomly selected from the training dataset. This is the lower-bound baseline for the similarity metrics.  Second, we compute the average similarity of an image to its augmented versions (which we assume have the same visual semantics) using various techniques: JPEG compression, Gaussian Blur, Random Affine, Color Jitter, Random Horizontal Flip, and Random Perspective.  Third, we compute the similarity between a clean image and its perturbed version produced by the jailbreaking method~, as described in Section~. This method aims to maximize the similarity between LLM outputs and a set of harmful outputs, irrespective of the image content. 
+
+Results in Table~ show that our method preserves image semantics, whereas the jailbreaking method does not.
+
+% We compare the image semantics with three baselines: %  average similarity between each pair of images within the training set., augmented image,  and perturbed image with jailbreak attack as a comparison of our method against most jailbreaking attack discussed in ~.%  % For the augmented image baseline, we choose JPEG, Gaussian Blur, Random Affine, Color Jitter, Random Horizontal Flip and Random Perspective as augmentation methods. The jailbreak image is training with the method described in . results show that similarities between the embeddings of clean and perturbed images (MiniGPT-4: 0.601, LLaVA: 0.332) are slightly lower than those between clean and augmented images (MiniGPT-4: 0.809, LLaVA: 0.362). This suggests that our perturbations lose some of the semantic content of the images.  For comparison, we also include similarities between clean images and visual jailbreaking images, as well as clean images and unrelated images, all of which are lower than perturbed images.
+
+ is an independent metric that measures similarity between images at the pixel level.  SSIM results are similar to embedding similarity.  SSIM values for perturbed images (MiniGPT-4: 0.316, LLaVA: 0.337) are close to those of augmented images (MiniGPT-4: 0.432, LLaVA: 0.432), vs. for unrelated image pairs and those for visual-jailbreaking images (MiniGPT-4: 0.173, LLaVA: 0.188), further confirming that our perturbations maintain visual quality and structural integrity of images. 
+
+% This metric shows similar results to the cosine similarity metric, indicating consistency in the preservation of image quality and semantic content despite the perturbations.% We also measure the percentage when asking the victim model if label depicts the image and if output is relevant to the question and image's content. In Table% Table~ describes the percentage of instances where the victim model confirms that the label accurately depicts the perturbed image, and the oracle model (ChatGPTo) confirms that the victim model's output with the perturbed image is relevant to the text prompt, clean image, and perturbed image. These results ensure that the semantic content of the image is preserved, and the output correctly responds to the user's query about the image.
+
+Table~ shows the results of LLM-based measurement of image preservation.  The first and fourth columns of the table show how often the target VLM responds that the label accurately represents the content of the perturbed images, as described in Section~. For MiniGPT-4, this value averages 46\%, compared to 88\% for LLaVA. These values are similar to those for clean images (43\% and 100\%, respectively).  We attribute this to the differences in the models' respective inherent capabilities to describe images.
+
+% This demonstrates that despite the perturbations, the models' outputs remain contextually relevant to the clean image.
+
+The other columns in Table~ show the percentage of responses deemed by the oracle LLM as relevant to the prompts and corresponding clean and perturbed images, respectively. For both MiniGPT-4 and LLaVA, these values are very high, averaging 96\%. This indicates that the models' outputs are contextually accurate for our perturbed images. 
+
+By contrast, visual-jailbreaking images force the model to generate harmful outputs that are irrelevant to the content of the image.  As a result, none of these outputs are related to either clean or perturbed images even though they use the same  as our perturbations and appear visually similar to clean images.  This demonstrates that small  is insufficient to preserve the visual semantics of the image and highlights the necessity to train with text sequences that answer questions about the image, as described in Section~.
+
+%  
+
+Overall, Tables  and  suggest that while there are some variations in how VLMs interpret images, our method creates image soft prompts that preserve the visual content of the corresponding clean images.
+
+%----figure 8
+
+Table~ shows the results for the sentiment meta-instruction under different perturbation norms:  () and  ().   Figure  shows examples of image soft prompts with different perturbations.
+
+Sharif et al.~ demonstrated that perturbations with  norm of 6 are less noticeable to humans than perturbations with  norm (16/255). This suggests that  perturbations are more stealthy, making them preferable for tasks requiring minimal perceptual alteration. 
+
+Results in Table~ show that applying perturbations with  norm or lower  norms (e.g., 16/255) creates less-perceptible changes while still steering the model to follow the meta-instruction.  Meta-objectives following rate for  perturbations with  (Positive: 41\%, Negative: 22\%, Neutral: 77\%) is similar to perturbations with  (Positive: 49\%, Negative: 18\%, Neutral: 72\%). Although there is a slight drop in meta-instruction following (i.e., satisfying the meta-objective) compared to explicit instructions and image soft prompts generated with  norm and  (Positive: 62\%, Negative: 34\%, Neutral: 69\%), there is a good balance between stealthiness of the perturbation and inducing outputs that satisfy the meta-objective.
+
+%----table 4
+
+Table~ shows the results of image soft prompts trained with MiniGPT-4 (Vicuna V0 13B) against different target VLMs, including different versions and sizes of MiniGPT-4 and LLaVA.
+
+These results show that the attack transfers to a smaller version of the same model. Specifically, image soft prompts generated using MiniGPT-4 (Vicuna V0 13B) are effective against MiniGPT-4 (Vicuna V0 7B), with positive, negative, and neutral sentiment meta-objective following rates of 40\%, 30\%, and 69\%, respectively. 
+
+% This indicates that the attack is effective within the same model family, even when the model size is reduced.
+
+Transferring to different model architectures or significantly different versions significantly decreases effectiveness. Images trained on MiniGPT-4 (Vicuna V0 13B) are ineffective against MiniGPT-4 (Llama2 7B) and LLaVA (Llama2 13B): generated outputs have similar sentiment scores to outputs generated from clean images.
+
+% These findings highlight that while the image soft prompts are effective within the same model family, their effectiveness diminishes when applied to different model architectures or significantly different versions. This suggests that the image soft prompt attack method is model-specific, with limited generalizability across different models.%---table 5%  %[1)]%     \item plot the flag/politician example, fine-tune the layout%     \item Two tasks in the same image -- not sure if this is a meaningful experiment?  Why would the adversary insert two different instructions instead of one combined instruction?% % % %----table 6%{1.2}%---table 7% {3.2mm}% % eb{% Additional experiment ideas:% 1. Localized perturbations,% 2. Test whether the attack works on ChatGPT/Gemini, etc,% 3. Can you ask all the questions against perturbed image, i.e. how much information about the image is lost?% 4. Adversarial chch training, % 5. Toxicity experiments, toxicity is not jailbreaking imo.% 6. Does attack on a smaller model transfers to larger model?% }
+
+Defenses of this type apply transformations that preserve visual features of the image while destroying adversarial features~.  JPEG compression is an example of such a transformation. In our case, adding a JPEG compression layer before encoding input images significantly reduces the efficacy of meta-instructions hidden in image perturbations.  
+
+Table~ shows that when JPEG compression is applied to the perturbed images, success of the attack, i.e., percentage of outputs that satisfy the adversary's meta-objective (sentiment, in this case) drops significantly.  This indicates that JPEG compression disrupts adversarial features while maintaining the visual content of the image.  Note that attack success rates are non-zero even on clean images because responses to clean images occasionally satisfy the meta-objective without any instructions.
+
+This aligns with findings from prior research, which demonstrated that applying JPEG compression can significantly lower the effectiveness of adversarial perturbations against multi-modal encoders~.
+
+Defenses of this type can usually be evaded by an adaptive adversary who incorporates the defense into the perturbation generation process. For example, Zhang et al. JPEG-evading multi-modal embedding attacks~.  We follow the same technique and add a differentiable approximation of JPEG compression~ to our perturbation method, aiming to train a more robust image soft prompt that could evade JPEG defenses. 
+
+In our case, this evasion failed.  Even in the absence of the defense, images trained using this method induce VLM outputs that do not follow the meta-instruction, thus failing the primary (meta-)objective of the attack.  This finding is consistent with our transferability results (see Section~), indicating that image soft prompts are somewhat brittle and difficult to train robustly.   We leave evasion of feature-distillation defenses and countermeasures to future work.
+
+By design, image embeddings are intended to preserve essential visual features of images.  These features are also preserved by various augmentations (flips, jitter, etc.).
+
+Therefore, a plausible defense is to compare the embedding of an input image with the embeddings of its augmentations.  For normal images, the embeddings should be similar; for images with adversarial perturbations, there may be significant differences. 
+
+Table~ shows our evaluation of this defense.  We use all ten meta-instructions for this evaluation.
+
+For MiniGPT-4, the average cosine similarity between the embeddings of unperturbed images and their augmentations is 0.839, whereas for perturbed images, it is lower at 0.651. For LLaVA, however, the average cosine similarity between the unperturbed (respectively, perturbed) images and their augmentations is 0.443 (respectively, 0.424).  The confidence intervals of these values overlap, indicating that the defense may not be effective for LLaVA.

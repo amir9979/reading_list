@@ -1,0 +1,3 @@
+In order to maximise the research benefits brought about by working with super tiny language models, we propose to structure our research in the following way:
+
+A particular goal of this is to improve the transparency of our research process. Since machine learning is largely an empirical science, ensuring that negative results that confound our intuitions are published can help to advance the state of our understanding of neural networks.

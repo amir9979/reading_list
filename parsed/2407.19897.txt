@@ -1,0 +1,61 @@
+The literature has explored various metrics and desired properties. However, our purpose is not to include all available metrics, which could introduce unnecessary noise, but to deliver users with a tool that integrates the most commonly used and practical metrics, helping them decide the most suitable XAI method for their use case. Additionally, given the plurality of denominations and formulations attributed to the same metric in the literature, we opt for the most commonly used formulas with low computational complexity to facilitate the understanding of the quantified property and its results.
+
+The evaluation component of BEExAI v0.0.6 provides 9 metrics to quantify 3 main desired properties of explainability: ,  and :
+
+The metrics that are available in BEExAI v0.0.6 are listed in Table.. More details about the metrics can be found in  Appendix..
+
+Some evaluation metrics require a features' ablation process, which involves replacing (masking) specific features with a baseline value. Choosing the right baseline is crucial as it needs to represent a neutral reference point for attributions . One group of baselines consists in sampling feature values from the other instances of the dataset as baselines. Possible methods are:
+
+Another alternative is using a  baseline, which is the most common choice. It consists in the replacement of a feature by a constant value, often zero, the mean or the median of the concerned feature.
+
+The benchmarks that follow are based on the zero baseline. This choice is considered as the most appropriate for NNs  because it leads empirically to a prediction near zero resulting from the multiplication of weights.
+
+Further research is needed to accurately measure the baselines' choice impact on evaluation metrics' results and how they align with the intended interpretation of these metrics. This is particularly important when dealing with out-of-distribution instances, which can hinder the production of explanations that are representative of the dataset and the task under consideration .
+
+It is possible to compute all the mentioned explainability metrics with just one line of code. This requires a curated dataset, a trained model and an explainer as inputs. More parameters can be selected to customize the computation of metrics and get more details about the desired output format. \\
+
+For the implementation of ML models, we use the scikit-learn library , encompassing Gradient Boosting, Histogram-based Gradient Boosting, XGBoost, Random Forest, Linear Regression and Logistic Regression. Default hyperparameters are retained for these models to ensure easier reproducibility with satisfactory results. The proposed implementation of NNs utilizes PyTorch . Hyperparameters' selection is discussed in Section..
+
+Through the BEExAI library, different models can be used to generate benchmarks. This paper provides evaluation results only on XGBoost and NNs models. Considering computational constraints, this choice is made to explore a broader range of XAI methods.
+
+For XAI methods, we use the open-source library Captum  for DeepLift, Integrated Gradients, Saliency, LIME, Shapley Value Sampling and Kernel Shap. Note that other methods like Feature Ablation and Input X Gradient are available in BEExAI but are not included in the following benchmarking results to limit the scope of our analysis. 
+
+BEExAI offers the flexibility of using either GPU or CPU for the entire pipeline, from training the model to the computation of evaluation metrics. Rather than computing the XAI methods for each sample, we suggest an optimized version of the metrics mentioned earlier, which accelerates computation through tensorial operations at various levels. During the production of benchmarks, model weights and attributions can be saved in PyTorch  format for later reuse, especially for XAI methods with long computation time.
+
+All experiments for the following benchmarks are performed on a device with an AMD EPYC 7742 64-core @ 3.4GHz CPU and multiple 10GB partitions of a single NVIDIA A100 PCIe GPU for multiple random seeds at the same time.
+
+To ensure accurate interpretation of the evaluation metrics' results and better comparison of different XAI methods, sanity checks are carried out by generating random explainability attributions for each sample within the boundaries of the attributions computed by a given method. We compare, for example, these random attributions with regular attributions in Figure..
+
+In this section, we present an overview of the datasets employed in our benchmark evaluation. To ensure robustness in handling real-world project tasks, we utilize datasets that are derived from two benchmarks, specifically designed for tabular data.
+
+To enhance the accessibility of our benchmark and enable easier usage, our benchmark library includes configurations, models, and precomputed attributions for two specific tasks: a regression task and a multi-label classification task. For regression, we use the Boston Housing dataset, which is derived from the data of Hedonic Prices . For classification, we use the Kickstarter Projects dataset. These two datasets are an effective starting point to represent each task studied in this work and to facilitate the adaptation of the pipeline to other specific tasks.
+
+The benchmarks were produced on  and  to cover a wide range of tasks with tabular data. We used the provided curated datasets from the two benchmarks without making any additional processing. To reduce the influence of outliers on metrics like Infidelity, which can introduce noise in the calculations, we used QuantileTransformer scaling on the input features. Additionally, we chose to use MinMaxScaler for regression datasets' target values, restricting outputs to a 0 to 1 range. This prevents unbounded values from affecting the evaluation metrics used to assess explainability.
+
+We split each dataset into 80\% for training and 20\% for testing. As the objective was to produce results on a wide range of tasks without focusing on tuning the hyperparameters of ML predictive models, we did not use a validation set, and directly evaluated our models after training. However, our pipeline allows for creating a validation set and monitoring its performance during training for hyperparameter tuning.
+
+We used a three-layer dense NNs with 128 neurons per layer. Between the hidden layers, we added Batch Normalization followed by a 10\% dropout layer. All activations used are Rectified Linear Unit (ReLU), with a softmax layer added at the last layer of the network for classification tasks and a linear layer for regression tasks. The model was trained for 1000 epochs with a learning rate of 1e-3 and a default Adam optimizer. 
+
+For the XGBoost model, we used default hyperparameters defined by scikit-learn, selecting XGBRegressor or XGBClassifier according to the task of interest. 
+
+For classification tasks, the optimization loss is the cross-entropy, whereas for regression, we employ Mean Squared Error (MSE).
+
+To evaluate the performance of ML models, we use Accuracy and F1 score for classification tasks, whereas for regression, we measure performance via MSE, Root MSE (RMSE), and R2 score.
+
+For computational time constraints, we apply stratified sampling to extract 1000 data points from each test-set to ensure that the selected inputs accurately represent the data distribution. We average the results of our XAI metrics benchmarks on five different random seeds for dataset sampling, model training, explainability scores attributions and explainability evaluation. All results are reported with the mean and the corresponding standard deviation (std).
+
+We provide all of our models, attributions and benchmark results for reproducibility and help with further research in the domain.
+
+To compute the attributions, we select, for each instance, the label with the highest predicted probability as the target. We believe that this approach provides a more accurate portrayal of the model's predictive capability. Afterwards, we calculate the evaluation metrics using the same chosen targets.
+
+An alternate solution that we discarded is to choose the ground-truth label. Indeed, in real-world scenarios, we do not have access to ground-truth labels, making this method impractical.
+
+We have also experimented with other alternatives. One approach we tried was to compute attributions and evaluation measures for each label, then take the mean of these values across all labels to obtain a global score for each instance. However, this approach was computationally expensive, especially for multi-classification tasks, and it did not yield accurate results as the predicted probabilities for classes that were not predicted might not accurately reflect the model's predictive capability. We also considered the approach of summing on the absolute values of the attributions for each label before calculating the explainability metrics. The assumption behind this approach was that we were only concerned with the relative importance of each feature. However, this possibility was discarded as it was not accounting for the fact that the attributions' sign has a significant role in classification tasks.
+
+We made our choice of treatment according to our results, but we emphasize the need for in-depth research to analyze the best method that ensures consistent comparisons between XAI methods. 
+
+ We consider the absolute values of the generated attributions instead of raw values. This choice is motivated by the specificity of regression tasks compared to classification ones. Indeed, in regression tasks, the goal is to predict a scalar value, not a probability as in classification tasks. Hence, the target value can be approached by positive and negative contributions from the input features. Negative contributions can offset positive ones, leading to faster convergence toward the target. Therefore, we prioritize the features with the highest contributions, regardless of whether they are positive or negative. We found that retaining the signs of attributions led to less satisfactory results for metrics like Comprehensiveness and Sufficiency.
+
+Figure. shows an example of how using absolute values of attributions instead of raw attributions affects Sufficiency and Comprehensiveness metrics. For Sufficiency, an expected outcome is observed with the application of absolute values. The most important features that are ablated first have the greatest impact on the metric value. As we remove the less important features, the impact decreases. This means that the most important features are sufficient to explain the model's predictions, while the less important features are less essential. However, when using raw attributions, the values of Sufficiency metric become less obvious. The resulting trend has three phases. First, removing features with the highest positive attributions noticeably decreases the metric value. Second, as less important features are removed, the metric changes slightly. Finally, removing features with the highest negative attributions causes another decrease in the metric's value.
+
+ We choose to adjust specific metrics (Faithfulness Correlation, Comprehensiveness, Sufficiency, and Monotonicity) that consider the difference between the model's prediction on a sample and the same model's prediction of a perturbed version by taking the absolute value of this difference instead of the signed difference. Indeed, the interpretation of the difference's sign is different if we are on a regression or a classification scenario. In the case of classification, the prediction is represented as a probability for the label of interest. Hence, when masking the first most important features, we expect a positive difference that represents a probability's degradation of the label of interest (the predicted label). However, in the case of regression, when masking the first most important features, this degradation can be either positive or negative because the prediction represents a scalar value, and thus, the sign of the difference has not the same significance as it does in classification tasks.

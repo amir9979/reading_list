@@ -1,0 +1,55 @@
+Mono-lingual Chain-of-Thought  triggers LLMs to directly reason step-by-step in the source language to solve tasks. Formally, when presented with a query  expressed in the source language , the LLMs generate a reasoning path, which can be simplified and represented as follows:
+
+where  denotes the generated reasoning path with multiple steps in the source language . Following this, the LLMs produce the final results , which are obtained by:
+
+For better cross-lingual generalization for CoT in multilingual scenarios,  propose Cross-lingual Chain-of-Thought methods to align multilingual representations explicitly. Formally, given a query  in source language , experts  select a target language  to serve as an anchor for cross-lingual alignment. The LLMs then generate an alignment  as follows:
+
+Subsequently, the LLMs produce the result  by:
+
+Finally, the LLMs determine the final results  based on the reasoning path  in  and generated alignment :
+
+To address the significant challenge of manual language selection, as shown in Figure~, we propose  (ALSP) to autonomously and intelligently choose the most suitable languages and further utilize the cross-lingual capabilities of LLMs. Specifically, the prompt content is as follows:
+
+Specifically, ALSP directs LLMs to select the  of languages by analyzing the , respective , and a comprehensive list of potential target language information .  The language selection process can be formulated as:
+
+where  represents the final set of chosen target languages, and  encompasses respective language family, language branch, the proportion of available pre-training data to facilitate informed decision-making. 
+
+After selecting the target language, as shown in Figure~, we further introduce  (AWAP). Specifically, our carefully designed prompts for guiding LLMs to automatically allocate weight to each language inference path are as follows:
+
+Specifically, this process dynamically allocates weights from  to languages based on their relevance to the , enhancing performance of LLMs by aligning the  to target language  generated from last turn more effectively. Formally, the automatic weight for each language can be obtained by:
+
+where  represents the cross-lingual alignment weight for the -th target language.
+
+By automatically determining the relevant language and its associated weight, our framework further adapts  to more effectively merge multilingual alignments, leading to improved consistency across languages. Following Equation~, we collect a set of generated results . The formulation of the final integrated result  is presented as follows:
+
+where  and  both denote a reasoning outcome generated based on a specific formula in the target language  from the generated result set , and  represents the weight assigned to that language. Additionally,   is the indicator function, which returns 1 if  is true and 0 if it is false.
+
+Following , we assess the performance of  on the widely utilized multilingual mathematical reasoning dataset MGSM  and select three representative LLMs as backbones, namely PaLM~, GPT3~, and GPT-3.5~. The top-p and temperature parameters in all processes are selected within the range of . 
+
+We follow previous work  to adapt accuracy (Acc.) as the metric to evaluate the performance. The main results are shown in Table~. 
+
+From the results, we observe that  attains superior performance compared to all baseline models by achieving state-of-the-art performance, even surpassing the ensemble methods  and , which manually select reasoning languages. Specifically,  achieves an average accuracy improvement of over 3.1\%, outperforming  across all tested languages. This demonstrates that , while implementing the automatic selection of reasoning languages, can better elicit the cross-lingual CoT reasoning capabilities of LLMs.
+
+To gain deeper insights into our approach, we explored the following research questions:  (1)  (2)  (3)  (4)  (5)  (6)  (7)  In this section, we explore whether  and  are effective.
+
+To analyze the effectiveness for  (ALSP), we removed the ALSP and randomly selected six languages for all query data instead. As indicated in Table  (), there is a significant decline in reasoning performance across all languages. In particular, there was an average accuracy reduction of 6.6\%. It indicates that ALSP can effectively select the more optimal languages for alignment, which significantly improves the process of bridging linguistic gaps, directly contributing to a notable enhancement in the performance of multilingual CoT.
+
+To verify the impact of excluding the  (AWAP) from our . By default, we adopt the setting of  and set the weight of all languages ​​to 1 by default. As presented in Table  (), it demonstrates a notable reduction in cross-lingual CoT performance, with an average decrease of 2.2\%. The absence of specific weightings for each language resulted in lesser coherence when merging the outputs from multilingual reasoning, adversely affecting the reasoning process of overall effectiveness. This performance decline highlights the critical role of the AWAP. Specifically, AWAP accurately allocates weights and facilitates detailed planning to enhance the degree of cross-lingual alignment, thereby improving the precision of multilingual reasoning.
+
+To validate the functionality and effectiveness of the combination of the  and , we conducted an experiment where both modules were simultaneously removed. As shown in Table~ (), we observe a significant decline in performance compared to the , with a decrease of 7.5\%. This decline was also evident when compared to the individual ablations of the ALSP and AWAP modules. The absence of both modules resulted in a substantial decrease in accuracy in multilingual reasoning, underscoring the importance of language selection and weighting for better cross-lingual reasoning.
+
+To investigate the influence of the interactive capabilities of LLMs on , we differentiate between single-round prompting and multi-round prompting. Specifically, in the single-round prompting approach, we instruct LLMs to simultaneously select reasoning languages and allocate weights. Conversely, in the multi-round prompting approach (), in the first round, LLMs try to select the language, and then LLMs are required to allocate weight in the second round.
+
+As illustrated in Figure~, the average performance of single-round interactions exhibited a decrease of 2.9\%, which indicates that leveraging the interactive capabilities of LLMs can significantly enhance the performance of cross-lingual CoT and the capability of language planning. 
+
+To showcase the efficacy of our method using a limited number of languages, with a varied number of languages, specifically ranging from three to five. As shown in Figure~, a positive trend can be observed: as the number of languages incorporated increases, there is a corresponding enhancement in model performance. This pattern underscores the scalability and robustness of our approach in processing multilingual inputs. Further, to explore the effectiveness of , we compared our results with the state-of-the-art method, CLSP , which uses manually selected languages and a voting mechanism to merge answers from multiple languages.  In detail, as shown in Figure~, when evaluated across linguistic settings encompassing three, four, and five languages, our model consistently outperformed the CLSP framework, registering an average performance uplift of 0.4\%. Such findings demonstrate the efficiency of our approach across varying language counts, which highlights the potential of our method in leveraging cross-lingual planning automatically to improve cross-lingual CoT capabilities.
+
+In investigating the capacity of  to encompass a broader linguistic spectrum, this section counts the variety and distribution of reasoning languages selected by . The statistical results are shown in the Figure~, in its reasoning processes,  incorporated a minimum of seven and a maximum of ten distinct languages. This demonstrates a significant enhancement in linguistic diversity when contrasted with the conventional approach of static language selection, underscoring the superior adaptability and breadth of languages facilitated by the autonomous choices made by LLMs.
+
+To further validate the scalability and universality of , we adapt  on other open-source LLMs. The experimental outcomes on LLM Mistral  are depicted in Figure~, demonstrating the optimal capability of  on open-source LLMs. With an average performance improvement of at least 5.2\% over CLSP, these results further attest to the broad applicability of .
+
+To further explore the effectiveness of  on other tasks, following , we conducted experiments on two multilingual datasets, XNLI  and PAWS-X . The results, as shown in Figure~, indicate that  achieved better performance than CLSP on both datasets, with an average improvement of 4.0\% on XNLI and 2.2\% on PAWS-X. And it surpasses the performance of all languages compared with CLSP. These effectively illustrate the generalization of  on different cross-lingual COT tasks.
+
+To provide a more intuitive understanding of our method, we present a distinct case for qualitative analysis in this section. As shown in Figure~~(a), CLSP conducts reasoning in six manually selected languages. The reasoning results are correct in English (en) and Russian (ru), but incorrect in German (de), Japanese (ja), French (fr), and Chinese (zh). CLSP treats each reasoning path equally, integrating different paths solely through a voting mechanism, which unfortunately led to the incorrect answer ``14''.
+
+Conversely, as depicted in Figure ~(b),  automatically selects six reasoning languages based on the query during the first interaction round. Although reasoning in German (de), Japanese (ja), and Vietnamese (vi) lead to incorrect answers, English (en), Russian (ru), and Spanish (es) produce correct ones. In the second round, it assigns respective weight scores to each language. By aggregating these weighted scores, our method successfully circumvents the incorrect reasoning, ultimately selecting the correct answer ``30''. These cases demonstrate the effectiveness and intuitiveness of our method. Specifically, our  is capable of performing automatic cross-lingual planning on both languages and respective weights. Such advanced planning effectively decreases the cross-lingual alignment difficulties.

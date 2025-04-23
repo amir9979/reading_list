@@ -1,0 +1,137 @@
+Given that most input data are likely to contain superfluous parts, , image background, irrelevant objects, we foresee a significant opportunity to further ``compress'' data. To accelerate VLMs from the data perspective, the primary process is to distinguish where the redundancy lies. And to analyse it quantitatively, we define token sequence informativity as a measure to quantify the information contained in one token sequence. 
+
+Inspired by the informativity idea in information theory, we define  as the probability space of token sequences, where the triplet is sample space, -algebra, and probability measure. Following the concept of self-information~, we define the informativity of one token sequence  as:
+
+By the compound probability formula, we have
+
+where  and  is a subset of . If we can find  such that
+
+then the informativity of the token sequence can be approximated by
+
+As revealed by MAE series~, there exists considerable redundancies in visual tokens, such that only \% tokens almost restore the whole sequence, validating the existence of subset . And hence, the subset , having a total dependency on its complementary set , enables us to aggregate  into  for efficient calculation with little information loss.
+
+ Based on the analysis, we aim to find the dependencies between tokens of the given sequence, so that helping discover subset . 
+
+One intuition is, tokens with mutual dependency tend to have similar representations, , we can easily restore the texture of a shirt by just a few patches from it. What's more, tokens with high similarity have analogical contributions in the attention calculation. Hence, we believe that by merging tokens with high mutual similarity,  with a high dependency on  can be constructed. Formally, for token , we define its mutual redundancy  to be: 
+
+where  refers to cosine similarity, and  is the maximum operation. 
+
+Mutual redundancy for data merging could already get relatively good results on simple tasks, , image classification. However, in this process, each token is treated equally, thus its contribution to semantic categories are neglected. This will result in an early merging for tokens with important semantics, causing a drastic performance drop on fine-grained, information-demanding tasks, , multi-modal understanding and cross-modal generation.
+
+To merge tokens with preferences from trivial background to significant foreground, we use the guidance of semantic value hidden inside network. By defining  to be the  token of the output sequence  from  through the attention block, We treat  as rich semantic guidance, calculate its informativity as:
+
+where  is the affine transformation of the token sequence , while  refers to the attention map for the  token, calculated as follows: 
+
+We let semantic value of -th token as its attention weight . As we have no access to probability distribution of , we use a meandering way to approximate the solution. Inspired by the vector quantization~, one common sense can be summarized as follows. In the context of neighbourhood, continuous variables can be approximated by discrete quantities, illustrating that if we place the perspective in a local neighborhood, vectors that are closer in distance possess similar semantics. Thus, we can make assumptions of local continuity for .
+
+. Under the metric space defined by  norm and , for all , there exists  for semantic-rich , such that for all  satisfying , there exists  to verify the following inequality (see detailed deductions in supplementary materials): Denote  the  token after pruning the tokens , satisfying that for  associated with ,
+
+Then we can deduce from Eq.() (deduction in supplementary materials) that Such analysis indicates that, pruning/merging tokens with sufficiently small semantic value, will barely affect the informativity of the  token.
+
+Semantic value captures token importance/relevance to the overall semantics. We inspect it into data de-redundancy, by giving tokens with high semantics less weights. This ensures tokens with high semantic contributions are more likely to be retained, even if their mutual redundancy is high. In Figure~ and Section~, we prove the properties of semantic value, and the existence of subset .
+
+ For uni-modal tasks, we adopt intra-modal  token as guidance; while for multi-modal tasks, we use intra-modal or cross-modal  token for semantic value guidance depending on architectures (self-/cross-attention). With such designs, we can leverage cross-modal information for data de-redundancy.
+
+Before, we identify mutual redundancy and semantic value as key factors for data de-redundancy. Here, we quantitatively measure informativity in the output token sequence  of one attention layer. 
+
+On the one hand, for mutual redundancy , we define token redundancy to measure information similarity between tokens: , where  is the averaging operation. On the other hand, to verify the long-tail distribution of semantic value , we define attention concentration  as the semantic proportion in the top  tokens with highest values: . A larger  implies a higher degree of concentration on few tokens, ensuring safe reduction to insignificant trailing tokens without losing much information.
+
+To view underlying redundancies in VLMs, we do experiments on BLIP~, using the parameters fine-tuned on COCO. Figure~ counts token redundancy and attention concentration. We empirically draw the conclusions:
+
+: token redundancy and attention concentration are consistently high in most blocks:  in intermediate layers, the left  tokens contributes only .
+
+: token redundancy gradually increases as blocks deepen, implying a tendency of clustering done by the network. Attention concentration presents a bottleneck trend, with the maximum value reached at the intermediate layer. 
+
+These observations support the fact that tokens in the attention layer possess high mutual redundancy and concentrated semantic value, thus acceleration by data de-redundancy is promising. Next, we achieve the goal by one novel Turbo.
+
+ As mutual redundancy  and semantic value  are two key factors to keep information and remove redundancy, we propose information degree  for balancing, by two fusion strategies: weighted difference or coupled division:
+
+Table~ compares in detail to show the significance of trade-offs between  and . With information degree , we naturally propose Turbo to accelerate by data de-redundancy. Since the data organization of most VLMs is the attention-based sequence, Turbo could perform on any block with great flexibility. 
+
+ Turbo behaves in differentiated forms for generation and understanding. For high-level understanding (classification, retrieval, caption, VQA), Turbo calculates information degree for  input tokens  in each layer after the attention block, then sorts them to merge the top-level ones into the rest .  
+
+where  refers to the sort operation based on the information degree,  is the merging operation, and  is the drop ratio to all sequential tokens. For parallel computing, we set  to one constant in each batch. 
+
+For generative tasks (text-to-image and image-to-image), fine-grained pixel requirements make such simple merging of redundant tokens infeasible. We hence divide the Turbo into more modules, making its role become . Specifically, before each VLMs' block, Turbo calculates and records information degree between all tokens, then merges redundant tokens using ; while after each VLMs' block, Turbo restores the merged tokens by , that is, weighted sum related and unmerged tokens, with reference to information degree. 
+
+Such Turbo greatly reduces computing overhead for VLMs' blocks, while ensuring pixel-level generation. Besides that, Turbo also allows the bulk of computing to be done in parallel, making it friendly to the modern GPU devices. For more implementation details, please refer to supplementary materials.
+
+ Turbo wins many pros, compared to existing acceleration. . It performs data de-redundancy, , reducing computing from source of the AI system. And the resultant data could be generally used for various VLMs, , understanding/generation, multi-/uni-modality, showing powerful compatibility. . It fully considers the potential data-repetition guided by semantics, accelerating with little performance loss. Besides, it's user-friend without cumbersome tricks. . It works as plug-in without additional parameters for re-training, and is plain to avoid trivial development efforts.
+
+We carry out full experiments on uni-/multi-modal VLMs, to prove effectiveness. Two typical methods in the model-perspective acceleration, , GPTQ~ for quantization and UPop~ for model pruning, are used for full comparisons. In addition, we introduce two baselines: Redundancy and Semantics, to represent methods with only mutual redundancy and semantic value.
+
+ Thorough experiments on a wide range of multi-modal tasks for VLMs BLIP~, BLIP2~ and MiniGPTv2~ are done to test the effectiveness, in Tables~,~,~,~ and~. On all benchmarks, Turbo achieves the best trade-off for acceleration and performance preservation. We achieve better or competitive performance with less time, than the quantization (GPTQ) and the model pruning idea (UPop). Compared to model-perspective accelerations that require re-training for specific VLMs, Turbo is training-free to serve as universal plug-in for various VLMs. What's more, due to the huge cost of memory access time, FLOPs is not inversely proportional to actual throughput. This leads to poor accelerations for model-perspective methods in reality, since these methods can't reduce the memory access time of data. For quantization-based method, due to the dequantization process, throughput could even be lower than the original one. On the contrary, by directly merging data, our Turbo saves both memory access time and calculation amount. 
+
+: Table~ reports results (accuracy) under different drop ratios . Turbo performs the best even with an acceleration of × compared to × for UPop. We also insert Turbo into VLMs pruned by UPop, showing that Turbo is perpendicular to model-perspective acceleration, reflecting our universality.
+
+: Table~ Table~ evaluate the VQA task (accuracy) for BLIP~ and LLM-based MiniGPTv2~. In general, Turbo again exceeds the other methods either on performance or acceleration, even with several large drop ratios. 
+
+ requires fine-grained information. Table~ reports results on BLIP and BLIP2. Relying solely on mutual redundancy or semantic value for token merging performs poorly, implying non-negligible information loss. In contrast, Turbo retains much better results with same FLOPs and throughput, proving that it keeps key information by merging background rather than foreground. Besides, Turbo could further accompany these model-perspective accelerations (such as UPop  GPTQ) to get better efficiency.
+
+ often deals with large amount of data,  millions or even billions of image-text pairs in real scenarios, so there is an urgent demand for inference speed-up. Table~ demonstrates that, Turbo exceeds model-perspective methods and baselines by a large margin,   for image-text and  for text-image on BLIP Flickr30k compared to UPop~. Such acceptable accuracy drops show our method helps to make large-scale retrieval efficiently. 
+
+ Table~ compares across text-to-image, image-to-image tasks, for fine-grained visual generation. Comparing to acceleration only by mutual redundancy, Turbo achieves better generation quality, , lower FID scores. While getting similar generation results, Turbo brings great throughput gains over vanilla stable diffusion models.
+
+ On ImageNet-1k, we experiment with two uni-modal training plans, , AugReg~ and SWAG~. Table~ compares Turbo with one prevalent baseline: ToMe~. Note that image classification is rather simple comparing to multi-modal understanding tasks, so the performance drop is relatively small for the baseline. Nevertheless, Turbo surpasses ToMe on models of all sizes and training plans, while keeping the same acceleration rate.
+
+We here make comprehensive ablations to dissect components. Without loss of generality, all analysis below are conducted on BLIP image captioning~. 
+
+ are studied in Table~. As reported in Section~, mutual redundancy reveals the hidden dependency relationship between tokens. Adding mutual redundancy solely or on semantic value, witnesses obvious boosts in the performance. Moreover, semantic value also has an apparent enhancement for model performance. By balancing two components, we launch the information degree to achieve the best results. 
+
+ Figure~ also investigates the performance fluctuation within a wide range of drop ratio . (a) Scheme with only mutual redundancy is relatively stable on the large scope but performs badly on small . This accords with our prediction in Section~ that mutual redundancy can't distinct important tokens. Merging semantic-rich tokens at early stages inevitably loses fine-grained information. (b) Scheme solely guided by semantic value possesses satisfying results on small  but drops dramatically on large . This is because that the assumption set in Eq.() no longer holds, resulting in a dramatic drop in performance. By combing semantic value with mutual redundancy, we achieve superior performance on all the scope of .
+
+ In Eq.(), we adopt two fusion strategies. Table~ shows that coupled division and weighted difference achieve similar performance. Due to the complexity of multiplication over addition, coupled division is slower than weighted difference. Moreover, several complex strategies are studied: dynamic  on different layers (see supplementary materials), but they all result in minor gains, so we use weighted difference for efficient merging.
+
+ The balancing coefficient  in Eq.() may affect the Turbo performance. Hence, Figure~ experiments to choose  on image captioning for BLIP (VIT-Base and VIT-Large). From the range , the performance fluctuates slightly on both models with different sizes, indicating that Turbo is unaware of  within a certain range. This proves our robustness.
+
+ Figure~ shows the process of token merging, and we highlight foreground in red boxes. Comparing to ToMe~, Turbo merges more background patches, while retaining most foreground patches with semantics. Thus, data compressed by Turbo keeps  comprehensive/fine-grained information. 
+
+~ shows the results, using text prompts such as: one female model wearing purple long sleeves and blue jeans stands on the coast. Although Stable Diffusion~ still needs improvement in generation details (such as hands), Turbo acceleration has almost no side effects.
+
+Turbo could be easily plugged in almost any pre-trained, attention-based VLMs to reduce the total sequence length block by block, with no need for further training or adjustment. In practice, we replace all the attention blocks by Turbo. For Turbo, we merge tokens progressively based on their information degree:
+
+Information degree takes both mutual redundancy and semantic values into account, encouraging insignificant, similar tokens to be merged preferentially. This merging strategy reduces the amount of tokens with duplicated or low informativity, compressing the token sequence with minor information loss. Inspired by~, we follow the bipartite soft matching to calculate mutual redundancy and apply the merging strategy to aggregate tokens. Specifically, due to the over-parameterized problem for token sequence~, we leverage keys (K) or queries (Q) in QKV attention and the cosine similarity metric between tokens to measure the similarity between tokens. We define mutual redundancy of one token to be the maximum cosine similarity with the other tokens. By adding the quantity of semantic value, which is the attention proportion of each token, the information degree is finally obtained. 
+
+To avoid excessive computational cost for calculating similarity matrix of the whole token sequence, we leverage bipartite soft matching to speed up the merging process. Suppose the drop ratio is , which means we will reduce the amount of tokens by number  in each block. In every block, we divide the tokens into two partitions  and  of the same size (if the number of tokens is odd, one partition has 1 more tokens than the other). Then we calculate the mutual redundancy between the two partitions  and . Specifically, for each token in partition , we keep the highest cosine similarity with respect to partition  as its mutual redundancy. After adding the semantic value of each token on partition , we sort the information degree of  and merge the top  tokens into , by averaging merging the  tokens in  into the corresponding tokens in  with the highest cosine similarity. At last we concatenate the sequence back to continue the forwarding process. In this way, we reduce the length of token sequence by  in each block after the attention layer and before the MLP layer. Notice that We call  the drop ratio, but it is in fact the number of tokens we reduce every attention block, which is a real ratio by dividing the length of the token sequence. We also note that the semantic value are naturally contained in uni-modal  self-attention map or cross-modal  cross-attention map depending on the model structure, so we do not need to add additional calculation for the semantic value.
+
+When merging process is finished, some tokens can represent several different patches. This can change the outcome of softmax attention and thus influence the attention calculation. So we fix this with a minor modification:
+
+where  is the number of patches/tokens represented by the merged tokens all along the merging procedure.
+
+In order to avoid excessive merging, , merging too many tokens and leave only a few tokens in final blocks. This will cause insufficient expression ability problem and we observe a sharp performance drop at certain drop ratios. So we set up one threshold for the least number of tokens in the final stage, to mitigate the dramatic drop on large . Table~ shows the effectiveness of this restriction for preventing a sudden performance decline.
+
+For generative tasks, Stable Diffusion~ is one popular backbone. Here, Turbo contains one merging module and one inverse-sampling module. For the merging module, we attach Turbo acceleration on the UNet of Stable Diffusion, as UNet consumes the most computation. More specifically, UNet usually consists of three key components: self-attention, cross-attention and FFN. We add Turbo merging/restoring before/after each component. For self-attention and FFN, Turbo merging is calculated by one visual modality; while for cross-attention, Turbo merging is calculated by visual-textual modalities. We evaluate by generating  images, each resolution is . The text classes used are from ImageNet-1k. We use FID scores to metric the generation quality.
+
+We propose four types of fusion strategies to combine mutual redundancy () with semantic value (), as follows:
+
+where  is designed to allow dynamic scales between  and  on different blocks. For example, if  and , then the scale of  will reach its maximum on block 6 and attain the minimum value on two-end blocks. 
+
+As shown in Table~, we have done extensive experiments on the four fusion strategies with different coefficients. Though  attains the best result, due to its complexity and such slight performance gain, , three hyper-parameters to be determined with one gain of only 0.3 on CIDEr, we thus adopt the simple weighted average fusion strategy () on our turbo module.
+
+When applying large drop ratios  on Turbo module, we witness a sharp drop of model performance. We argue that this phenomenon is due to the insufficient expression ability of token sequence length below a certain threshold. So we append a threshold on minimum number of tokens left in the final block. Specifically, we stop the token merging process once the token sequence length is below the threshold. Results in Table~ demonstrates the effectiveness of such a threshold on large . By introducing a threshold to large drop ratio, we improve the model performance by over 10 points on CIDEr with slight acceleration declines.
+
+To show the upper limit for our method, we also evaluate the performance cap of Turbo under certain performance drop tolerance. Table~ evaluates the Turbo cap with 5\% drops in performance. Turbo can accelerate throughput by up to 2.8 times, almost twice as redundancy-only methods. Such higher caps validate Turbo's power, although the performance sensitivity to acceleration varies among different tasks. Besides, the VLMs' backbones recently continue to grow, causing more data redundancy, so Turbo's cap can be higher in future. 
+
+Table~ also evaluates the Turbo's performance with 25\% tokens left. Turbo accelerates throughput to 1.9 times, with only 2.6\% performance loss (acceptable), on average, which verifies the assumption drawn in main paper that 25\% is sufficient for containing most of the information. 
+
+. We first remind the definitions/propositions concerning open ball, neighborhood and continuity in topology.
+
+. Given a metric space , where  is a set and  is a metric on , the open ball centered at a point  with radius  is defined as the set of all points in  whose distance to  is less than . Mathematically: . Let  be a metric space, , we say that  is a neighborhood of  in , and write  if there exists  such that .
+
+. Suppose , then . We define  as a semantic-rich vector if  is in the set of all possible  tokens . Inspired by the success of quantization methods~,  can be replaced by the most similar discrete vector in the code-book without losing its informativity. Based on this observation, we make an assumption for the local continuity for informativity  on :
+
+. Under the metric spaces (, ) and (, ), ,  is continue on .
+
+According to Proposition~ and Definition~, for all , , so , therefore there exists  such that . By mapping the open ball  back using , we can find  such that . The operator  can be replaced by  by choosing small , proving the proposition in the main paper.
+
+Denote  the  token after pruning the tokens , with :
+
+Replacing  by the original  token , while replacing  by the pruned  token  in Eq.~(9), if we have
+
+then with the prior conclusion from Eq.~(9)
+
+To maintain information, we choose . Supposing that  associated with  is , then according to Eq.() and Eq.(), for a subset  such that
+
+we can approximate the informativity of  token as:
+
+Thus, Eq.~(11) is proved. Such analysis indicates, pruning/merging tokens with sufficiently small semantic value, barely affects the informativity of the  token.

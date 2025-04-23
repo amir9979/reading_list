@@ -1,0 +1,95 @@
+The  architecture is based on the Transformer architecture~ with modifications to enable sparsity in the activations. 
+
+The Transformer architecture uses  to perform the projection in both attention and feed-forward layers, which can be written as:
+
+where  is the input tensor,  is the weight tensor, and  is the output tensor. The  operation is equivalent to the matrix multiplication operation.
+
+We introduce a top-K sparsity function on top of the matrix multiplication operation. The top-K sparsity function is defined as:
+
+where  is the mask tensor that indicates the top-K activations in the input tensor  in terms of the absolute values,  is the element-wise multiplication operation, and  is the function that selects the top-K elements in the tensors.
+
+To reduce the interval around zero, we re-scale the tensor by its  norm after performing the top-K sparsity function.
+
+Recent works~ have shown that quantization can be used to reduce the memory footprint and computational cost of LLMs without the loss of performance. We introduce a quantized version of the top-K sparsity function. The quantized top-K sparsity function is defined as:
+
+where  is the quantization function that quantizes the input tensor  to a 8-bit representation:
+
+where  is a small constant to avoid division by zero, and  is the maximum absolute value in the input tensor .
+
+ can be used with both full-precision and quantized LLMs. Specifically, the quantized version of  is compatible with 1-bit LLMs, such as BitNet b1.58~. When using  with 1-bit LLMs, the quantization function is performed on the weight tensor :
+
+where  is the quantization function that quantizes the weight tensor  to a 1.58-bit representation: where  is the mean absolute value in the weight tensor :
+
+To further improve the sparsity of the activations, we use the squared ReLU function~ for the feed-forward layers. The squared ReLU function is defined as .
+
+Following the LLaMA architecture, we use the gated linear unit (GLU) for the feed-forward layers. The squared ReLU function is applied with the GLU function into a ReLUGLU function. The ReLUGLU function is defined as:
+
+While the top-k sparsification can be used in the single-sample mode, it is not friendly with the batch mode for the current GPU devices. Recent work~ shows that N:M sparsity, where N out of M consecutive elements to be zero, is more hardware friendly and can be used in the batch mode with an optimized GPU kernel. To leverage this feature of the modern GPU devices, we introduce Block . The key idea of Block  is to apply the top-K sparsity function on the activations in the block level, and the block size is set to  so that there are always  zeros out of  consecutive values. The top-K sparsity function is applied to the activations in each block independently. The block level sparsity can be used to reduce the memory footprint and computational cost of the LLMs in the batch mode.
+
+Most of the existing works~ on training sparsely-activated models use the vanilla back-propagation algorithm to compute the gradient through the sparsity function:
+
+where  is the mask tensor that indicates the top-K activations in the input tensor , and  is the element-wise multiplication operation. 
+
+The vanilla back-propagation algorithm has a limitation. It zero-outs the gradients of the non-activated elements, which can lead to the vanishing gradient problem, especially when the sparsity ratio is high. In this work, we propose to use the straight-through estimator~ to back-propagate the gradients through the sparsity function. In this way, the gradients are passed through the sparsity function without being zeroed-out. The straight-through estimator is defined as:
+
+We visualize the average  norm of each projection's gradient across different layers for dense model,  with and without STE. We adopt top-K as 50\% for . Without STE, the gradient is much smaller at the bottom layers, while STE can preserve the magnitude of the gradients. As shown in Figure~, STE estimator significantly eases the issue of gradient vanishing, especially at the bottom of the layers. We present more visualizations for each components in the Appendix~.
+
+ can be used in different settings, including training-from-scratch, continue-training, and finetuning. In the continue-train and finetuning settings, we use the same architecture and training procedure as in the training-from-scratch setting. The only difference is that we initialize the model with the pre-trained weights and continue training with the sparsity function enabled.
+
+For the pre-trained models that do not have the squared ReLU function in the feed-forward layers, we apply the top-K sparsity function after the activated function (e.g., SiLU) in the feed-forward layers. It can improve the sparsity of the activations without changing the model architecture.
+
+To determine the form of the scaling law of sparse-activated LLMs, we begin with a series of scaling experiments. In the experiments, we train a series of language models with  of various scales, ranging from 300M to 7B. The models are trained on the Redpajama dataset~. We use the Sentencepiece tokenizer from LLaMA to preprocess data. Besides , we also train the dense baselines with the same datasets and settings. More details can be found in the Appendix~.
+
+The observed losses of the sparsely-activated models and the dense baselines are shown in Figure~. We summarize the findings as below:
+
+According to these findings, our main hypothesis is that the performance of the sparsely-activated models follows a combination of a power-law scaling law with regards to the model size  and an exponential-law scaling law with regards to the sparsity ratio .
+
+With a fixed sparsity ratio , the scaling law should follows 's scaling law, which can be written as:
+
+where  is the scaling exponent, and the scaling factor  is a function of the sparsity ratio . Given any model size , the function  should follow the Lipschitz continuity with regards to the sparsity ratio . Therefore, the scaling exponent  should be a non-decreasing function. Given any model size , the function  is increasing with the sparsity ratio , so  should be a non-increasing function. Above all, the scaling exponent  should be a constant, and the scaling function can be written as:
+
+According to the above finding, the performance of the sparsely-activated models follows an exponential-law scaling law with regards to the sparsity ratio . Therefore, the scaling factor  should also follow an exponential law. Besides, given any model size , the scaling function is increasing with the sparsity ratio . Therefore, the scaling factor  should be a non-decreasing function. The scaling factor  can be written as:
+
+where  is the scaling factor for extremely sparse LLMs,  is the scaling factor for dense LLMs, and  is the scaling exponent of the scaling factor  with regards to the sparsity ratio .
+
+% L-BFGS
+
+We fit the parameters of the scaling law to the observed losses of the sparsely-activated models. We use the L-BFGS algorithm~ to minimize the Huber loss~ between the predicted and observed log loss.
+
+Following~,  is set as . We select the best fit from a grid of initialisations around possible local optimas. , , ,  and  are estimated as 1.86, 0.01, 1.89, 0.10 and 0.05, respectively.
+
+Given the above scaling law, we can derive the performance of the sparsely-activated models and the dense baselines with the same model size  and the same sparsity ratio . The performance gap between the sparsely-activated models and the dense baselines decreases as the model size  scales. The performance gap can be written as:
+
+Since  is a constant that satisfies , the performance gap decreases as the model size  scales. It means that given a large enough model size , the performance of the sparsely-activated models can eventually match the performance of the dense baselines with the same model size.
+
+The scaling law can also be transformed into a form that is dependent on the activated parameters , which reflects the effective compute (i.e., FLOPs) of the model during inference:
+
+where  is the number of activated parameters in the model, which is equal to . Since  is an increasing function and  is  a decreasing function, there exists a sparsity ratio  that minimizes the loss of the sparsely-activated models. This leads to the inference-optimal scaling law of the sparsely-activated models:
+
+It shows that the performance of the sparsely-activated models is better than the dense baselines with the same inference compute budget. We further solve the optimal sparsity ratio , finding that . It means that a sparsely-activated model with a sparsity ratio of 45.58\% (or  parameters) can achieve the best performance with the same inference budget . We follow the same process to estimate the inference-optimal scaling law for 1.58-bit  models. We find that the optimal sparsity ratio is 61.25\% (or  parameters). Figure~ shows the inference-optimal scaling curves of the sparsely-activated models with full-precision and 1.58-bit weight. It shows that with the same performance, the sparsely-activated models can achieve a significant reduction in the number of activated parameters or FLOPs during inference.
+
+The inference-optimal scaling law shows that the performance of the sparsely-activated models can be optimized by adjusting the sparsity ratio . It can be used to guide the training of the sparsely-activated models and to optimize the performance of the models during inference.
+
+ We train a series of language models with  in both full-precision and 1.58 bits. The models are trained with 50B tokens on the Redpajama dataset~. We compare  with the dense baselines with the same datasets and settings.
+
+ The observed losses of the sparsely-activated models and the dense baselines are shown in Figure~. It shows that  with 40\% sparsity ratio can match the performance of the dense baselines with the same model size and training tokens.
+
+ We further evaluate the effectiveness of  on 1-bit LLMs. We train a series of BitNet b1.58 models with  of various scales. We plot the training loss curves of both  and the BitNet b1.58 baseline. Figure~ shows that the performance of the sparsely-activated BitNet b1.58 models is better than the dense baselines with the same inference compute budget. It demonstrates that  is compatible to 1-bit LLMs and their synergy can be used to optimize the performance of the models during inference.
+
+ We evaluate the effectiveness of Block . We compare it with  of the same sparsity ratio.  The sparsity ratio is 50\%, and the block size is set to 32 (i.e., N:M=16:32). The experiments are performed with the model sizes of 300M and 700M. The training loss curves of  and Block  are shown in Figure~. It shows that Block  has a similar convergence to  with the same sparsity. It demonstrates that Block  can match the performance of  when training from scratch.
+
+ To evaluate the effect of the top-K sparsity function, we compare the performance of the sparsely-activated models with the top-K sparsity function and the ReLU sparsity function. Moreover, we study the effect of the STE by comparing the models with and without STE. Figure~ illustrates the results. It shows that either removing STE or replacing with ReLU function significantly hurt the performance. Besides, the sparsity ratio of the models with the ReLU function decreases as the training processes. In constrast, the sparisty ratio remains unchanged with the top-K sparisty function. As shown in Figure~, we break down the contribution of the sparsity ratio from different components, finding that the decreasing sparisty is mainly from the QKV projection, the gating projection and the up projection of the feed-forward layers. This proves the superior of top-K over ReLU function.
+
+ We continue-train the Mistral 7B model~  for 40B tokens on the FineWeb-Edu dataset~. We use the Sentencepiece tokenizer from Mistral to preprocess data. We use the batch size of 4M tokens and the learning rate of 5e-5. We use the Adam optimizer with the weight decay of 0.01. More training details can be found in Appendix~.
+
+ For a fair comparison, we continue-train the Mistral 7B model with the same recipe as the dense baseline. We compare  with the ReLUfication~ and dReLU Sparsification~ methods, which sparsify the model by changing the activation function. Following the origin paper~, we adopt a two-stage training strategy that first replaces the non-ReLU activation and then adds the ReLU functions. For the dReLU Sparsification method, we implement the dReLU sparsification method following the origin paper~. We evaluate these models on a range of language tasks, including ARC-Challenge~, HellaSwag~, Winogrande~, MMLU~ and TruthfulQA~. Results are shown in Table~. It shows that  achieves comparable performance to the dense baseline while being much more efficient at inference time. Moreover,  outperforms the ReLUfication and dReLU Sparsification methods in terms of the performance and the sparsity ratio.
+
+To break down the sparsity of each component in the model, we present the sparsity ratio of the query, key, value, output, up, down, and gate tensors in Table~. It shows that  achieves a higher sparsity ratio than the ReLUfication and dReLU Sparsification methods. The sparsity ratio of the query, key, value, output, up, and down tensors is higher than 40\%, and the sparsity ratio of the gate tensor is higher than 60\%. It demonstrates that  can achieve full sparsity of activations in LLMs.
+
+ We finetune the base model of Mistral 7B~ and Qwen1.5 7B~ on Open-Orca dataset~ for both the dense baselines and . The batch size is set as 128. The learning rates are selected from \{3e-6, 5e-6, 7e-6\}. All models are trained with 1 epoch for a fair comparison. The hyper-parameters are detailed in Appendix~. We conduct the evaluation for these models on a range of language tasks, including ARC-Challenge~, HellaSwag~, Winogrande~, MMLU~ and TruthfulQA~.
+
+ The results are shown in Table~. It shows that  with 3.6B activated parameters achieves significant better performance than the Qwen1.5 4B dense model. Moreover,  with around 4B activated parameters achieves comparable performance to the Mistral 7B model and the Qwen1.5 7B model. It demonstrates that  can be used to finetune a dense pretrained model to a much more efficient sparse model with almost no loss at accuracy.
+
+ We finetune the base model of Mistral 7B~ and Qwen1.5 7B~ on Open-Orca dataset~ for Block . The block size is set as 32, which is recommended by the previous work~ on N:M sparse kernels. The other hyper-parameters are consistent with the experiments shown in Section~.
+
+ Table~ summarizes the results for Block . Similar to the results of , Block  achieves comparable performance to the dense baselines with much fewer activated parameters. It demonstrates that Block  can be used for a much more efficient sparse model while supporting the batch mode.

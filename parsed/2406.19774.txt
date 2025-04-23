@@ -1,0 +1,101 @@
+% need to explain the reason for reward func!
+
+Sequence-level KD is often formulated as an optimization problem. Given a fixed teacher model with output distribution  and a student model with output distribution , the optimization goal is to minimize the distribution distance between   and  . The distance is measured by Kullback-Leibler divergence (KLD). In the case of KD for LLMs, forward-KLD and reverse-KLD are the most studied, respective defined as  and . The reverse KL divergence is more suitable for KD while the distribution of LLMs is more complicated.
+
+% white box and black box 
+
+Given two comparable objects or events, a common model for comparing the probabilities of their selection is the Bradley-Terry (BT;~) model. We consider output  and , and the reward function that measures the gain of choosing an output is denoted . BT model can be used to measure the probability that we choose  instead of :
+
+where  is the function .
+
+% need to explain the reason for reward func!% 
+
+In the context of knowledge distillation of LLMs, the distribution difference measured by KL divergence is usually considered to be the only criterion for the distillation target. But KL divergence is not enough. From the perspective of measuring distributions, KL divergence is 0 if and only if  and  are the same distribution in the case of discrete variables, or  in the case of continuous variables. KL divergence measures the difference between two distributions, but it is not really a distance because it is asymmetric  . Therefore, some researchers have improved the KL divergence by combining two symmetrical items (Jensen-Shannon divergence ). In the field of KD, researchers have explored the inadequacy of KL divergence in KD . Some works  hope to redesign KL divergence, and some works add new objectives besides KL divergence. %changed the KL divergence into a distribution difference weighting that changes dynamically according to the data distribution. In addition, there are also scenarios that two student distributions with the same  distribution difference from the teacher distribution, but they are not necessarily the same in terms of output performance evaluation.% so we are adding implicit reward func Based on the above considerations, we denote the implicit reward   as a supplement to the KL divergence in the optimization objective. We formulate the  optimization goal as:
+
+% CONTINUE HERE We can get the optimal solution of Equation~ through the following steps. Firstly transform Equation~ as follows:
+
+where , and  is the normalized function of the distribution, which is required to be independent of  and  . It is defined as . Following the work, we can derive the optimal solution of Equation~:
+
+From Equation~ we can obtain that:
+
+Given the same prompt x, the outputs of the student model and the teacher's model are respectively denoted as  and . The purpose of KD is to fit the distribution of the student model to teacher model, which can also be understood as we expect the student model to have a greater probability of outputting results similar to the teacher model. From the BT model, we can obtain  the following probability:
+
+The complete derivation of the above procedure is in the Appendix . Since our goal is to maximize the probability of model outputing  rather than , which is . It is formulated as:
+
+where  denotes  for short, and same for  and . 
+
+Following the framework derivation of DPKD, the loss is defined as:
+
+% simpo, lenth norm It is shown by works  that models tend to introduce bias and produce short responses without length normalization. We add the length normalization factor to the distillation loss as follows:
+
+Following work , we add the language modeling loss in order to preserve performance on canonical NLP benchmarks. The complete algorithm process is shown in Algorithm~. %We initialize the student model and teacher model with supervised fine-tune on , then calculate the output distribution difference  according to Algorithm  and the gradient is updated. % Pretrain norm% add an algorism% 1/4 page  Based on our target definition, we can derive the gradient of DPKD through the basic chain rule and perform analysis similar to work . From Equation~, we can perform variable substitution and define , and the gradient of the loss can be expressed as
+
+We can derive the complete form of gradient:
+
+The full derivation of the gradient is in the Appendix .
+
+% 1/2 page% 
+
+Following work , we conduct a theoretical analysis of DPKD and relate the reward function in KD we introduced to the Q function..We consider the sequence generation task, and the data set , where the prompt is denoted as . We denote the vocabulary as , each word  is included in the vocabulary . Given input prompt , the model output is , where  is the maximum generated length. At each time step, the generated  is conditionally generated based on the generated sequence .
+
+From another perspective of Markov Decision Process (MDP), the process of sequence generation by the model is regarded as the generation process of a Markov decision chain. The state is denoted as , and the action is , which is chosen based on generated sequence . The transition function from the current state to the next state is the LLMs we selected.
+
+We analyze the implicit reward function of DPKD from  function, which is a perspective in reinforcement learning. % Following work TODO:add ref  function is specifically explained as follows:  refers to the expectation of the benefit obtained by taking action  (a word selected from the vocabulary, obtained by taking the maximum from the output distribution or sampling by top-k) in state  (generated sequence ). The general represent of  is:
+
+Following the MDP perspective of sequence generation  and according to the work %TODO: add ref , the fixed point solution of Equation~ is:
+
+Any valid  function needs to satisfy the Belmman equation, from which we can write the current step  function for the optimal strategy (that is, the most optimal student model parameters) and the reward function  as:
+
+where  is defined to be zero if  is the end of sequence (EOS). Following the work % TODO add ref , we can use the  function instead of  and substitute it into the Bellman equation.
+
+Now we can use the  function to re-derive the DPKD method. We use the  function and the  function to represent the sum of the reward function written at the current time step t. By transforming the Equation~ and summing over time t, and substitute Equation~ into the resulting sum, we could obtain: % % % \sum_{t=0}^{T-1} & r(_{t},_{t})=Q^{*}(_{0},_{0})-\beta\log p(_{0}|_{0}) \\% & +\sum_{t=1}^{T-1}Q^{*}(_{t},_{t})-V^{*}(_{t})-\beta\log p(_{t}|_{t})% % 
+
+According to the multi-step generalization of the Bradley-Terry preference model, namely the Plackett-Luce model% TODO add ref , and substituting the Equation  into it, we can obtain:
+
+where  refers to the sequence trajectory generated by the model, and in the sequence generation task of the large model, it refers to the generated text. Replace  and  in the formula with  and  respectively, and the above formula is exactly the same as Equation~. Thus we get the complete process of deriving the DPKD of this work from the  function. Therefore, we can link the DPKD method of this work with the concept of  function in reinforcement learning and Markov decision chain.
+
+% 1/4 page % following % add or not?
+
+From the experimental results, we implicitly optimized a reward function in the KD process by redefining the formula and objectives of KD, and our experimental results show the role of the reward function in the KD training process. This shows that the KD in our experiment is actually optimizing a reward function, which is an unobserved perspective.
+
+From the perspective of theoretical analysis, the reward function not only serves as a weight term in the gradient of our DPKD, but also as a hub connecting our DPKD method and the Q function of reinforcement learning.
+
+Furthermore, from the results in Section , we can see that experiments with different preference expressions related to reward functions show quite different results, and some preference expressions even show promising results, even though we did not do much parameter fine-tuning. This shows that using reward functions to express preferences in the knowledge distillation process is effective, and there is still a lot of value to explore, which also provides ideas for subsequent work.
+
+ We conduct experiments and analysis on the task of instruction tuning. The topics of instruction tuning range from summarizing to completing the request, and the model is required to complete the response according to instruction, prompt, and input. We specifically select data with instructions and outputs longer than 10 words in the dataset to ensure that the model aims to generate high-quality results that are long enough. The RougeL  score is used to measure the quality of model generation, as  has shown that RougeL is suitable for large-scale instruction tuning evaluation.
+
+ For the datasets, we use the following datasets: (1) Dolly  including 15k instruction/response generated in capability domains from the InstructGPT, (2) Self-Inst  consisting of 252 expert-written tasks and their instructions motivated by user-oriented applications, (3)  (S-NI;~)  containing over 1.5k tasks and covering 76 distinct task types. We filter the data whose length exceeds the model processing length and select the part with response length  as training data to keep the same settings as the validation set and test machine. 
+
+ For teacher models, we select GPT-2  (1.5B) and OPT  (13B). The student models are GPT-2 with 120M and 340M parameters and OPT with 1.3B parameters respectively. These models have been  pre-trained on the  datasets.
+
+% The large language models we used in the experiment come from two widely used open source large models, namely GPT-2  (120M, 340M) and OPT   (1.3B) models. For the teacher model of each model, we use GPT-2-1.5B and OPT-13B respectively. These models have been  pre-trained on the  datasets. The baseline methods we selected include: (1) Supervised Fine-Tuning () directly fine-tune on labels of dataset; (2)  is also called word-level KD, which uses the teacher's output distributions as supervision; (3) Sequence-level KD (;~) directly distills the student model on the data generated by the teacher model; (4)  leverages reverse KL divergence to perform distillation on LLMs ;(5) Adaptive Kullback-Leiber (;~) uses a combination of forward and reverse KL with dynamic weights to perform distillation.
+
+We conducted experiments based on the Algorithm  and the experimental settings in Section , and the experimental results are shown in Table . In this section, we conduct a preliminary analysis of the results including the RougeL score, the GPT-4 score, and an example of the implicit reward function introduced in this article. 
+
+From the experimental results we could see that our method shows great performance compared with the various baseline method. We conduct KD experiments on datasets with different distributions and LLMs of different sizes, showing that our method is applicable to a wide range of models and data and retains good performance. In some specific datasets, the student model trained by our knowledge distillation method is even close to the performance of the teacher model.
+
+We collected the output texts of DPKD and the baseline method of GPT-2 Base, and scored them together with the labels of the dataset by GPT-4 to evaluate the quality of the instruction tracking generated text of each method compared with the label. Due to the input context text restrictions of GPT-4, we used the generation results and labels of the first 100 datasets of DollyEval. Although the output results of each method are still a certain distance away from the label, the generation results of the method proposed in this paper are close to the evaluation of the label, which is higher than baselines.
+
+% % In Figure  we show the visualization of the implicit reward function and RougeL score introduced in this paper. % We use an unbiased approximation to the reward function, which is % Based on this and the definition of RougeL, we visualize the reward for each word in the example sentence and the letters that contribute to RougeL. From the example sentence, we can see the correlation between the implicit reward function and the score. More examples and results are shown in the appendix, and more analysis of the reward function is in  Section .
+
+We analyzes the implicit reward function involved in this paper, and analyzes the role of the reward function introduced in KD from both theoretical and experimental perspectives. According to the derivation of the gradient in Section , the reward function plays the role of a weight in the gradient update process. When the model parameter's estimate of the reward function indicates that the current output is biased towards error, the value of the weight will be larger, and thus the gradient will be larger. When the current performance of the model is already better and the output distributions of the student model and the teacher model are close, the weight term we mentioned earlier will be low, so the model will tend to converge.
+
+We hope to examine the trend of KL divergence and reward function of DPKD. We use an unbiased approximation to the reward function, which is  Based on this and the definition of reward estimation,  we plot the two variables of reward function and KL divergence for the same model (here we use the GPT-2 Base model) at different training periods. We can get the following results.
+
+% KL divergence measures the distance between the distribution of the output of the student model and the distribution of the output of the teacher model at each training time step. The reward function is calculated as described in the previous Section  and will not be repeated here. RougeL is the result of the test after we save the checkpoint. After obtaining the three-dimensional data points, we plot them in two dimensions and three dimensions respectively, hoping to present our results in the most intuitive way. We visualize the trend of reward  during training and the reverse KL divergence distance between the student and teacher models over training epochs in Figure . From the visualization results, we can see that although some model checkpoints are very close to the KL divergence of the teacher model (all within the range of ), the difference in the reward function value still causes the difference in RougeL scores. From the curve trend in the figure, it can be seen that the optimal point of model training is taken at a left-point arc vertex, that is, the student model has the lowest KL divergence from the teacher and the reward function is at a higher value. The size of the reward function may be related to the hyperparameter  in training, which is used to adjust the relative proportion of the KL divergence and the reward function.
+
+Figure  shows the changes in the implicit reward function, KLD, and rKLD during training. We can see that the estimated implicit reward gradually increases within a range. The trends of KLD and rKLD are roughly the same, but the specific values are slightly different, which is consistent with the conclusions of previous work .
+
+% % During our experiments, we also observed interesting changes in the length of model generation. During the training process, the length of the generated texts of the student model and the teacher model gradually tended to be consistent, which is similar to the trend of the reward function in  Section . In the last few epochs of training, the difference in the length of the generated texts of the student model and the teacher model was almost zero.% TODO: add a pic
+
+In the subject of  fine-tuning language models with human feedback, there are many optimization methods based on preference. These different optimization methods are all based on the original work DPO, and modify the preference form, normalization method, etc. on this basis. In the field of knowledge distillation of large models, the function form derived in this paper is a relatively basic form. So similarly, we also conducted preliminary experiments on different forms of preference calculation methods, and hope to bring inspiration to subsequent research. The experiments conducted in this chapter did not perform special parameter fine-tuning.
+
+We experimented with four forms of preference: IPO, CPO, SimPO. Their definitions and experimental results are shown in Figure . % explain IPOFrom the experimental results, we could see that although other forms of preference do not exceed our method, they also show certain effectiveness.  showed that in the context of learning from preference data, the form of the preference also affects how the relative scores of  and  grow during the training process. Our results show that these problems and solutions are also applicable to the field of knowledge distillation, which also provides inspiration for future work.
+
+% 
+
+We conduct ablation experiments on the experimental setting and measure the scores on the GPT-2 Base model and DollyEval. We evaluate the results of removing length normalization and language modeling loss. In Table , KLD and rKLD represent the minimum values of KL divergence and reverse KL divergence from the teacher model during training, respectively. To ensure consistent distribution conditions, the distribution difference is calculated based on the first token output. The reward is the maximum value during training and is calculated in the same way as above.  From the results, we can see that the components added in the experiment have a positive effect on the results, especially the improvement of implicit reward. The complete method performs well with the teacher model under both reverse KL and forward KL metrics, and has the highest implicit reward and score.
+
+We experiment on subsets of the test set with different response lengths to test the effectiveness of our approach for scenarios with different output length requirements. We divide the DollyEval test set into three subsets according to the length of the golden response: ,  and , where 30 and 70 are the median  and mean of the response length, respectively. We then evaluate the response results of different baselines and DPKD methods on these subsets. 
+
+The results of RougeL and exact match are shown in Figure  and Table . Our DPKD method performs well on all subsets of response length splits. In particular, DPKD exceeds the baseline by the most in the results with response lengths in the middle. In the exact match results, the scores of many baseline methods drop to 0 when the golden response length is longer, while DPKD still performs well and exceeds the baseline.

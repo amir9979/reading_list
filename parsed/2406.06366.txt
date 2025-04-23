@@ -1,0 +1,71 @@
+The scaled dot-product attention given by the following equation (Equation~) is an operator on three input matrices, queries , keys  and values . We focus on the dot product  between queries  and keys , which is responsible for measuring the compatibility between tokens. The compatibility  is an operator on two input tokens (), that computes the dot-product of the projections of  and  respectively through the operators  and :
+
+Given two linear operators  and , we define a compatibility operator , such that:
+
+We challenge the necessity of using two different operators to compute the affinity of the self-attention encoder layer of the Transformer block. Since both  and  are operators on the same token space, it is reasonable to assume that the representations they learn share some features. In that case, since the original expression (Equation~) does not enforce any feature sharing, it may possess redundant parameters that will need to be learned twice.
+
+We attempt to make this feature sharing property explicit in the compatibility operator expression, in order to remove redundant parameters, reduce overall model size, and improve convergence rate.
+
+A simple way to make the feature sharing property explicit, is to enforce the following relation  between the two operators. This ensures that  and  share features and results in the symmetric compatibility operator:
+
+One aspect that needs to be considered is the amount of features shared between the two operators. Complete overlap in terms of features may be detrimental to the overall performance of the attention mechanism, e.., it could prevent the model to learn asymmetric relationships. Thus, we suggest the following compatibility operator where the amount of feature sharing is learned during training. To achieve this, we start with an operator  that will be shared, and we define operators  and  as a composition of  with a base change, resulting in the following compatibility operator (Equation~):
+
+Given a linear operator  and two square matrices , we define two linear operators  and , such that:
+
+Let  be the product , we define a compatibility operator , such that:
+
+This operator can be interpreted as a weighted dot-product whose weights are stored in , a matrix of pairwise factors. To make the expression consistent with the previously established expressions (Equation~ and Equation~), we relabel the  operator with the letter , resulting in the following pairwise compatibility operator (Equation~):
+
+For a Transformer block of  heads, with input size  and attention size , we give the parameter count formula for a complete block (with parameters from ,  and ). We note that most Transformer implementations impose .
+
+As shown in Table~, the symmetric compatibility operator uses two thirds of the original number of parameters. For the pairwise compatibility operator, the parameter count also depends on the number of attention heads, it converges towards  of the original number of parameters as the number of attention heads increases.
+
+In this section, we introduced two alternative compatibility functions for the attention mechanism, a symmetric dot-product operator and a symmetric with pairwise factors dot-product operator. In the following sections we will refer to them respectively as the  and the , we will refer to the traditional scaled dot-product operator as the .
+
+To pre-train our models, we select a subset of 30 million English documents from the OSCAR corpus  by applying content quality filters (see Appendix~). Using OSCAR data instead of the BookCorpus  and Wikipedia dumps is recommended for training BERT models  and ensures that the amount of documents is large enough for single epoch training.
+
+This training dataset is tokenized using the pre-trained  tokenizer  and sentences are aggregated into groups of 512 tokens. After tokenization, the resulting dataset contains 137 million training samples, 70 billion tokens and 10,000 test samples.
+
+We prepare three variations of the BERT model  using the original, the symmetric and the pairwise operators. We also train on two model sizes,  and . 
+
+As shown in Table~, the symmetric and pairwise operators lead to significant reduction in the number of parameters,  and  for the  model,  and  for the  model.
+
+In the following sections, we refer to a  model as  when it uses the original operator,  or  when it uses the symmetric or pairwise operator respectively.
+
+We follow the pre-training setup described by . The models are trained on a pure masked language modeling task with masking probability of 0.15 and batch size of 256 samples per training steps. Models are trained on 200,000 steps with a linear learning rate of  and learning rate warm-up during the first 10,000 steps. For the optimizer, we use Adam  with weight decay, , , , resulting in models pre-trained on 26 billion tokens. We measure evaluation cross-entropy loss during training to assess the training efficiency of our models.
+
+After pre-training, the models are fine-tuned and benchmarked on the GLUE dataset  to assess their natural language understanding (NLU) capabilities. Each model is fine-tuned on the provided downstream task training dataset for 5 epochs, with a batch size of 16 and a linear learning rate of . This benchmarking step is repeated on 5 downstream trials with different seeds. We measure individual task's scores, benchmark average and standard deviation across all trials. For each model, we measure: the combined F1 and accuracy on the Microsoft Research Paraphrase Corpus , Matthews correlation on the Corpus of Linguistic Acceptability , matched and mis-matched accuracy on the Multi-Genre Natural Language Inference Corpus , accuracy on the Quora Question Pairs dataset , accuracy on the Recognizing Textual Entailment dataset , the combined Pearson and Spearman correlation on the Semantic Textual Similarity Benchmark , accuracy on the Stanford Question Answering Dataset , and accuracy on the Stanford Sentiment Treebank . The Winograd schema challenge  task has been excluded from the evaluation following the recommendation of .
+
+Compared to the original BERT setup or more recent compute optimized fine-tuning setups , we choose to fine-tune for a longer time (5 epochs instead of 3) and with a lower learning rate ( instead of ), to have a more stable fine-tuning experience and reduce the risk of lucky seeding. With this choice, we aim to have a fairer evaluation of the models.
+
+We want to evaluate how downstream accuracy evolves during pre-training. We extract checkpoints during training and evaluate them on the GLUE benchmark. Each checkpoint is fine-tuned and evaluated on GLUE using the previously established fine-tuning setup.
+
+Figure~ shows that the symmetric and pairwise variant converge much faster than the original variant for the  model. The evaluation loss of the original variant remains on the initial plateau until step 25,000, when it sharply decreases. The symmetric variant remains on the initial plateau until step 13,500 and the pairwise variant until step 12,000. We also note that the original and pairwise variants will eventually reach the same evaluation loss plateau, while the symmetric variant remains above the two other variants with an additional absolute error of .
+
+Comparing Figures~ and~, we observe the impact of model size on training efficiency. When the model size increases, the original variant's initial plateau is expanded from step 12,000 to step 25,000, while the symmetric and pairwise variant were almost unaffected.
+
+Table~ shows that the pairwise variant performs better than the original variant with an increase of  points on the average GLUE score for both model sizes. The symmetric variant, however, is outperformed by the original variant in both cases, with a drop of  points on the average GLUE score. We also observe that both proposed variants have a lower standard deviation on the  model.
+
+Figure~ shows that the improved training efficiency observed during pre-training translates to a faster convergence rate on the GLUE benchmark as well. The pairwise and original variants both reach a final average GLUE score of approximately . The pairwise variant achieves  (a score of ) of its final value after 30,000 steps, the original variant reaches the same score after 65,000 steps.
+
+We also observe a smoother evolution of the accuracy for the pairwise variant compared to the original variant. The experiment also highlights the performance drop of the symmetric variant when compared to the original variant.
+
+During the pre-training experiment, we observed that both variants  and  outperformed the original variant  in terms of convergence rate (they initiated the learning and reached their respective plateau faster), for a  model the convergence rate seems to be two times faster. However,  and  ultimately met around the same evaluation loss, while  performed a little worse.
+
+One obvious explanation for the improved convergence rate can be found in the reuse of the  operator, this can impact convergence rate in three way:
+
+These effects explain why both  and  converge much faster than .
+
+While converging faster than ,  did not reach the same evaluation loss. It is fair to assume that this is a modelling issue and not a size issue since  outperformed  with a similar number of parameters. Thus, we can conclude that symmetry is not a desired property of the compatibility function of the attention mechanism.
+
+The evaluation of the three variants on the GLUE benchmark shows that  is more accurate than , reaching an average score of  against  respectively. The evaluation also shows that the standard deviation of the average score across five trials is lower for both  and , with a standard deviation of  and  against  for .
+
+This confirms that the training efficiency improvement observed on the pre-training task translates to the fine-tuning task and leads to improvement on the downstream task's accuracy. With the added benefit of making the fine-tuning task more stable, as shown by the lower standard deviation.
+
+We also note that the fairly small  difference in evaluation loss during training for  has translated to a  points accuracy drop on the evaluation benchmark, echoing our remark on the need to model asymmetric relationships.
+
+With these results, we experimentally prove that our pairwise operator improves the training efficiency of Transformer-based models, leading to a faster convergence rate and overall lower training loss. These improvements also translate to downstream task benchmarks. Models using the pairwise compatibility operator are indeed more accurate than the ones using the original compatibility operator.
+
+Running the benchmark evaluation on our three models at several steps of the pre-training experiment shows that the training efficiency we observed translates well into downstream accuracy. Our  and  converge faster towards their respective final values, similarly to the training loss observed on the pre-training task.  reaches  of its final value after 65,000 steps and  after 30,000 steps. While  eventually catches up and improves on ,  is consistently the better model.
+
+This final experiment highlights the improved training efficiency induced by the pairwise compatibility operator. The faster convergence rate observed during pre-training is also observed on the downstream task evaluation, confirming the convergence rate improvement by a factor of two for the  model.

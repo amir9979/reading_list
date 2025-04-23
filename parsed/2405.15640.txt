@@ -1,0 +1,23 @@
+Low-resource languages, such as Korean, have far fewer public data sources available, even if they contain data with copyright issues. In contrast, resource-rich languages like English have large, accessible data sources for training language models.
+
+As shown in Figure , similar to other bilingual language models , we aim to strike a balance between English and Korean in our pretraining corpus by down-sampling and up-sampling English and Korean corpus respectively.
+
+Since abundant open-source corpora for languages such as English and code already exist, and their refinement and processing significantly impact on the performance of language models , our focus has shifted more towards improving methods of data cleansing methods. However, because high-quality Korean corpora without licensing issues are extremely limited, we collect data from Web.
+
+Additionally, research findings  indicate that incorporating code data in the pretraining phase enhances the reasoning ability of language models, along with the academic perspective that treats code data as its own language. This ultimately led us to utilize three main corpora for pretraining: English, code, and Korean.
+
+There is research  on using translation datasets consisting of different language pairs for the purpose of multilingual alignment in the pretraining phase. Adopting this methodology, we train our model to align languages between English and Korean.
+
+We curate and process terabytes of Korean corpus, and utilize large scale open-source corpora for English and programming languages. A sophisticated pipeline for deduplication and cleaning of raw text is implemented to obtain high-quality data as shown in Figure . The primary objectives of this data processing are as follows:
+
+The training corpus includes the processing and normalization of specialized datasets such as wikis, programming code, mathematical expressions, and expert contributions. This step focuses on leveraging the structural elements inherent in these data types while carefully preserving tags and markdown features as shown in Figure . These considerations allow the model to interpret and generate contextually informed and syntactically coherent outputs, significantly enhancing its utility across various applications.
+
+We train GECKO tokenizer on the balanced corpus of Korean, English, and Code. Similar to other large language models , we utilize the Byte Pair Encoding (BPE) algorithm and train the tokenizer using Hugging Face's tokenizer. We treat all numbers as individual digits and segment unknown UTF-8 characters into bytes to avoid out-of-vocabulary issues. Additionally, we opt not to use NFKC normalization , recently reporting performance degradation on BPE-based tokenizers .
+
+We set the total vocabulary size to 32,000, following research  on optimal vocabulary size that aims to balance computational efficiency and performance considering larger vocabularies demand more computational power during the inference. We measure the efficiency of GECKO tokenizer compared to others using the following formula:
+
+The metric evaluates the tokenization efficiency by comparing the total number of tokens produced by GECKO tokenizer and others. Our tokenizer demonstrates superior efficiency in processing Korean while maintaining comparable results in English and Code, contrasting to the models primarily trained in English. The result of efficiency comparison using C4 corpus  and The Stack  is illustrated in Table  and Figure .
+
+GECKO adopts the classical decoder-only Transformer architecture used in LLaMA . The AdamW optimizer is employed to train the model, setting  at 0.9 and  at 0.95. The optimizer is configured to warm up over 10,000 iterations with a linearly increasing learning rate that peaks at 3e-4 and then decays to 3e-5 according to a cosine schedule. The model is trained with 200 billion tokens using BF16 mixed precision. Rotary positional embedding is utilized to train longer context tokens up to 8192 in length, allowing longer sequences to be understood during pretraining. We use sequence packing  to assemble multiple training samples into a single sequence and use end-of-sequence token to separate the document sequences.
+
+We train our model on Google Cloud Platform and used TPUv4 with 256 chips, utilizing Fully Sharded Data Parallelism (FSDP) and model parallelism. Leveraging JAX , we implement the single controller programming paradigm, which enables us to manage and parallelize our training efficiently using just one Python command.

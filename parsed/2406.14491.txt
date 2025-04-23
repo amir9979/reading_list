@@ -1,0 +1,67 @@
+To facilitate the scaling of supervised task learning, we develop an instruction synthesizer to generate instruction-response pairs based on raw corpora.  Studies suggest that raw corpora contain numerous intrinsic tasks~, which enables efficient scaling of task synthesis~ along with the upscale of raw corpora. 
+
+Our instruction synthesizer is developed through multitask fine-tuning on a language model. As illustrated in Figure~, during tuning, the instruction synthesizer is given a piece of raw text and tuned to create a set of instruction-response pairs.  The tuning data are curated to be highly diverse, enabling the instruction synthesizer to generalize to unseen data~. Therefore, during inference, we can directly employ the instruction synthesizer to create instruction-response pairs based on the raw pre-training corpora. Furthermore, we incorporate specific designs to synthesize both one-shot and few-shot examples for subsequent pre-training.
+
+ We sample from and reformat a diverse range of context-based task completion datasets, which require models to perform tasks based on a given context, to meet our fine-tuning requirements. Each data sample's context serves as the raw text, and the downstream tasks serve as the instruction-response pairs. The contexts span various domains such as encyclopedias, social media, and academic tests~, and the tasks encompass a wide range such as commonsense reasoning and sentiment analysis. Further details are in Appendix~.
+
+ We tune the instruction synthesizer using few-shot examples.  As depicted in Figure~, a one-shot example consists of a piece of raw text followed by its instruction-response pairs.  Each sequence fed into the synthesizer concatenates multiple such examples, all sampled from the same dataset.  This ensures that the concatenation of multiple examples within one sequence constitutes a few-shot example, maintaining consistency in patterns (i.e., task format or category) among different sets of instruction-response pairs.  Fine-tuning on these examples enables the instruction synthesizer to generate instruction-response pairs with similar patterns to those in the given examples~.  Additionally, we calculate the tuning loss only on the instruction-response pairs to guide the model to focus on these pairs.
+
+ We conduct multi-round inference to create few-shot examples.  As depicted in Figure~, in each round, we prepend the texts and instruction-response pairs from previous rounds to the current text. This allows the instruction synthesizer to generate new instruction-response pairs based on the previous ones.
+
+After collecting the synthesized instruction-response pairs, we employ templates from~ to diversify instruction formats, and templates from~ to concatenate each raw text with its instruction-response pairs.  As shown in Figure~, by concatenating the texts and instruction-pairs from  rounds, we create an -shot example for subsequent pre-training.
+
+Except for the pre-training data, ~keeps all other pre-training settings the same as : training with the next-token prediction objective~ and computing loss on all tokens. We conduct both general pre-training from scratch and domain-adaptive continued pre-training to verify the effectiveness in different pre-training scenarios.
+
+Considering the large amount of data required for general pre-training from scratch, we only convert part of the raw corpora into instruction-augmented corpora, leaving the rest unchanged. Besides, we mix the corpora with the data for fine-tuning the instruction synthesizer to enhance task diversity. 
+
+For domain-adaptive continual pre-training, the data requirement is much smaller. Therefore, we convert all raw corpora into instruction-augmented corpora. Following~, we mix the corpora with the general instructions to benefit from improved prompting ability. Since the general instructions collection contains the fine-tuning data for the instruction synthesizer, we do not include these fine-tuning data.
+
+Our synthesizer is fine-tuned from Mistral-7B-v0.1~, an open-source model with 7B parameters. This model is much more cost-effective than large-scale~ or closed-source~ models typically used for generating synthetic data~. During inference, about 5 instruction-response pairs are created per raw text, where each pair contains about 52 tokens. Further tuning and inference details are in Appendix~.
+
+ We randomly sample a subset of RefinedWeb~ dataset for raw pre-training corpora, consisting of 200M pieces of text containing about 100B tokens. 
+
+To create instruction-augmented corpora, we conduct two rounds of instruction synthesis, converting 1/5 of the raw corpora (40M raw texts) into instruction-augmented texts. The first round converts 20M raw texts, and the second round uses the raw texts and instruction-response pairs from the first round to convert another 20M raw texts. The resulted corpora contain 200M synthesized pairs.  An example of a 2-shot instruction-augmented text is shown in Table~ in Appendix.
+
+We then mix the fine-tuning data for instruction synthesizer. Since the fine-tuning data amount (0.2B tokens) is too small compared to that of the raw corpora, we increase its sample ratio so that it repeats 4 times throughout pre-training.
+
+ We adopt the architecture and tokenizer of Mistral~ to implement models of two different parameters: 500M and 1.3B. 
+
+Our pre-training settings largely follow . To enhance training efficiency, we implement the memory-efficient attention of ~. Detailed hyperparameters are listed in Table~ in Appendix. The lm-evaluation-harness framework~ is used for model evaluation, detailed evaluation settings are in Appendix~.
+
+We also conduct instruction tuning on the pre-trained model with 500M parameters using the data from~.  The instruction-tuned models are evaluated on MMLU~ benchmark.
+
+ We use raw corpora from two domains: PubMed Abstracts~ for biomedicine and financial news~ for finance.
+
+We conduct 3-round inference to covert all the domain-specific corpora. Each round processes 1/3 of the raw corpora, inheriting the raw texts and instruction-response pairs from previous rounds. Examples of the instruction-augmented texts are in Table~ and~ in Appendix.
+
+We then mix the instruction-augmented corpora with general instructions~, using the same mixing ratio as~.
+
+ We continue to pre-train Llama3-8B on each domain respectively, detailed settings are in Table~ in Appendix. We follow the same setting in~ to evaluate models on the domain-specific tasks. Detailed evaluation settings are in Appendix~.
+
+ Table~ presents the general performance of the models after pre-training. To ensure a fair comparison with , which uses only raw corpora, we include a baseline (Mix PT) that mixes the raw corpora with the fine-tuning data for our instruction synthesizer. Compared to ~(Vanilla PT), incorporating the fine-tuning data in Mix PT improves model performance on several benchmarks. By further transforming the raw corpora into instruction-augmented corpora, ~(Instruct PT) achieves even better performance. Note that none of the evaluated datasets are included in our fine-tuning data for the instruction synthesizer. Nevertheless, the model pre-trained on the data generated by the instruction synthesizer shows improved performance on these unseen datasets, demonstrating the effectiveness of our method in enhancing model generalization.
+
+In Table~, we compare our pre-trained models with other open-source models. Using 100B tokens, our 500M model reaches the performance of Pythia-1B~ trained with 300B tokens and our 1.3 B model reaches the performance of BLOOM-3B~ trained with 341B tokens. This shows consistent data efficiency of~~across different model scales.
+
+Figure~ shows the zero/few-shot performance on MMLU during instruction tuning from the pre-trained models. The model pre-trained via~~quickly outperforms the model pre-trained via~, and we observe a stable increasing trend of our model throughout the instruction tuning process. We infer that the closer alignment of training tasks during the instruction pre-training and instruction tuning stages facilitates a smoother transition between pre-training and fine-tuning. This alignment enables the model to learn more rapidly on downstream tasks. Therefore, ~offers a promising solution to significantly reduce the number of further fine-tuning steps~.
+
+ As shown in Table~, ~consistently outperforms ~on almost all domain-specific tasks. Continual pre-training with ~significantly enhances the domain-specific performance of Llama3-8B, achieving parity with or even surpassing Llama3-70B. On the finance NER benchmark, where ~underperforms~, we observe considerable variance, where even Llama3-70B underperforms Llama3-8B, suggesting that this benchmark may not be reliable. 
+
+ Table~ presents ablation results for our pre-training data, which consist of a mixture of domain-specific instruction-augmented corpora and general instructions.
+
+Our goal in multitask fine-tuning is to develop a general synthesizer capable of generating instruction-response pairs for any raw text. Therefore, we evaluate its performance on both seen datasets (listed in Appendix~) and unseen datasets. The unseen datasets include SocialIQA~, TextbookQA~, WikiWhy~, and FEVER~, each representing a specific instruction format. Each example in these datasets comprises a context (raw text) and a set of context-based tasks (instruction-response pairs).
+
+ Given a raw text and a task instruction, the instruction synthesizer generates a response. We compute the F1 similarity between the generated response and the gold response to evaluate response accuracy. Our instruction synthesizer is fine-tuned from the base Mistral-7B model. For comparison, we also present the results of the base model. As shown in Table~, our fine-tuned synthesizer significantly outperforms the base model on both seen and unseen datasets, demonstrating the effectiveness of our fine-tuning.
+
+ Given a raw text, the instruction synthesizer generates a set of instruction-response pairs. We compute the F1 similarity between the generated pairs and the gold pairs to evaluate their quality. The evaluation is conducted in both zero-shot and few-shot settings: 1) Zero-shot: the input to the instruction synthesizer contains only the raw text. 2) Few-shot: following~, a few examples from the same dataset as the gold instruction-response pairs, each consisting of a raw text and corresponding instruction-response pairs, are prepended to the testing raw text.
+
+As shown in Table~, compared to the base model, our fine-tuned synthesizer significantly outperforms the baseline across all four dimensions: zero-shot, few-shot, seen, and unseen datasets. In unseen datasets, the few-shot setting substantially outperforms the zero-shot setting, indicating that our synthesizer effectively leverages the pattern of the few-shot examples to create instruction-response pairs for the testing text. 
+
+We conduct experiments using an LM (base Mistral-7B in our analysis) to assess the impact of synthesized instruction-response pairs on helping LMs generalize to unseen tasks. Given a prompt concatenating a testing raw text, synthesized pairs, and a testing instruction, the LM generates a response. We then compare the LM's performance on the testing task with and without the synthesized pairs in the prompt to evaluate their effectiveness.
+
+We evaluate instruction-response pairs generated using different methods: 1) Random: randomly sampled instruction-response pairs of a different context. 2) Base: pairs synthesized based on the testing raw text by the base Mistral-7B model prompted with a few examples. 3) Ours: pairs synthesized based on the testing raw text by our instruction synthesizer using the same few-shot examples as Base.
+
+As shown Figure~, ``w/o Pairs'' denotes the setting where synthesized pairs are excluded from the prompt. On both seen and unseen datasets, ours consistently enhances the LM's performance on the testing task, surpassing all baselines. This demonstrates the effectiveness of our synthesized tasks in improving the LM's ability to perform a wide range of tasks.
+
+We analyze the instruction-augmented pre-training corpora in terms of context relevance, response accuracy and task diversity. We sample 500 instruction-augmented texts from the augmented corpora and use GPT-4~ to evaluate the synthesized instruction-response pairs. Specifically, GPT-4 is prompted to assess whether the synthesized instruction is relevant to the context of the raw text (context relevance) and whether the response is accurate based on the instruction and context (response accuracy). Additionally, to evaluate task diversity, we prompt GPT-4 to categorize each instruction-response pair using a predefined list of task categories from~.
+
+As shown in Table~, our instruction synthesizer generates instruction-response pairs spanning 49 different task categories, with over 85\% relevance to the context and 70\% response accuracy. We further group the task categories into 9 general task scenarios. Figure~ shows the percentages of each task scenario in the instruction augmented corpora for general pre-training. Our synthesized tasks cover all general task scenarios, demonstrating the effectiveness of our instruction synthesizer in generating a highly diverse tasks.

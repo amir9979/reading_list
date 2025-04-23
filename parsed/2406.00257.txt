@@ -1,0 +1,75 @@
+For the production of the electronic manuscript you must use Adobe's Portable Document Format (PDF). Please make sure that your PDF file includes all the necessary fonts (especially tree diagrams, symbols, and fonts with Asian characters). When you print or create the PDF file, there is usually an option in your printer setup to include none, all or just non-standard fonts. Please make sure that you select the option of including ALL the fonts.
+
+Moreover, some word processors may generate very large PDF files, where each page is rendered as an image. Such images may reproduce poorly. In this case, try alternative ways to obtain the PDF. One way on some systems is to install a driver for a postscript printer, send your document to the printer specifying ``Output to a file'', then convert the file to PDF.
+
+It is of utmost importance to specify the  (21 cm x 29.7 cm) when formatting the paper. Print-outs of the PDF file on A4 paper should be identical to the hardcopy version. If you cannot meet the above requirements about the production of your electronic submission, please contact the publication chairs as soon as possible.
+
+PDF files are usually produced from  using the  command. If your version of  produces Postscript files,  or  can convert these to PDF. To ensure A4 format in , use the command  in the  preamble (below the  commands) and use  and/or ; or specify  when working with .
+
+Format manuscripts two columns to a page, in the manner these instructions are formatted. The exact dimensions for a page on A4 paper are:
+
+ Papers should not be submitted on any other paper size. If you cannot meet the above requirements about the production of your electronic submission, please contact the publication chairs above as soon as possible.
+
+For reasons of uniformity, Adobe's  font should be used. If Times Roman is unavailable, you may use Times New Roman or .
+
+Table~ specifies what font sizes and styles must be used for each type of text in the manuscript.
+
+To use Times Roman in , put the following in the preamble:
+
+A printed ruler (line numbers in the left and right margins of the article) should be presented in the version submitted for review, so that reviewers may comment on particular lines in the paper without circumlocution. The presence or absence of the ruler should not change the appearance of any other content on the page. The camera ready copy should not contain a ruler.
+
+note that the ruler measurements may not align well with lines in the paper -- this turns out to be very difficult to do well when the paper contains many figures and equations, and, when done, looks ugly. In most cases one would expect that the approximate location will be adequate, although you can also use fractional references (, this line ends at mark ).
+
+The style files will generate the ruler when  is commented out, and remove it otherwise.
+
+Center the title, author's name(s) and affiliation(s) across both columns. Do not use footnotes for affiliations. Place the title centered at the top of the first page, in a 15-point bold font. Long titles should be typed on two lines without a blank line intervening. Put the title 2.5 cm from the top of the page, followed by a blank line, then the author's names(s), and the affiliation on the following line. Do not use only initials for given names (middle initials are allowed). Do not format surnames in all capitals (, use ``Mitchell'' not ``MITCHELL''). Do not format title and section headings in all capitals except for proper names (such as ``BLEU'') that are conventionally in all capitals. The affiliation should contain the author's complete address, and if possible, an electronic mail address.
+
+The title, author names and addresses should be completely identical to those entered to the electronical paper submission website in order to maintain the consistency of author information among all publications of the conference. If they are different, the publication chairs may resolve the difference without consulting with you; so it is in your own interest to double-check that the information is consistent.
+
+Start the body of the first page 7.5 cm from the top of the page.
+
+Use two-column format when you begin the abstract. Type the abstract at the beginning of the first column. The width of the abstract text should be smaller than the width of the columns for the text in the body of the paper by 0.6 cm on each side. Center the word  in a 12 point bold font above the body of the abstract. The abstract should be a concise summary of the general thesis and conclusions of the paper. It should be no longer than 200 words. The abstract text should be in 10 point font.
+
+Begin typing the main body of the text immediately after the abstract, observing the two-column format as shown in the present document.
+
+Indent 0.4 cm when starting a new paragraph.
+
+Format section and subsection headings in the style shown on the present document. Use numbered sections (Arabic numerals) to facilitate cross references. Number subsections with the section number and the subsection number separated by a dot, in Arabic numerals.
+
+Put footnotes at the bottom of the page and use 9 point font. They may be numbered or referred to by asterisks or other symbols. Footnotes should be separated from the text by a line.
+
+Place figures, tables, and photographs in the paper near where they are first discussed, rather than at the end, if possible. Wide illustrations may run across both columns. Color is allowed, but adhere to Section~'s guidelines on accessibility.
+
+Provide a caption for every illustration; number each one sequentially in the form: ``Figure 1. Caption of the Figure.'' ``Table 1. Caption of the Table.'' Type the captions of the figures and tables below the body, using 10 point text. Captions should be placed below illustrations. Captions that are one line are centered (see Table~). Captions longer than one line are left-aligned (see Table~).
+
+The style files are compatible with the caption and subcaption packages; do not add optional arguments.
+
+Within-document and external hyperlinks are indicated with Dark Blue text, Color Hex .
+
+Citations within the text appear in parentheses as~ or, if the author's name appears in the text itself, as . Append lowercase letters to the year in cases of ambiguities.   Treat double authors as in~, but write as in~ when more than two authors are involved. Collapse multiple citations as in~. 
+
+Refrain from using full citations as sentence constituents. Instead of
+
+write
+
+Table~ shows the syntax supported by the style files. We encourage you to use the natbib styles. You can use the command  (cite in text) to get ``author (year)'' citations as in . You can use the command  (cite in parentheses) to get ``(author, year)'' citations as in . You can use the command  (alternative cite without  parentheses) to get ``author year'' citations (which is useful for  using citations within parentheses, as in ).
+
+Gather the full set of references together under the heading ; place the section before any Appendices.  Arrange the references alphabetically by first author, rather than by order of occurrence in the text.
+
+Provide as complete a citation as possible, using a consistent format, such as the one for  or the one in the  ~. Use full names for authors, not just initials.
+
+Submissions should accurately reference prior and related work, including code and data. If a piece of prior work appeared in multiple venues, the version that appeared in a refereed, archival venue should be referenced. If multiple versions of a piece of prior work exist, the one used by the authors should be referenced. Authors should not rely on automated citation indices to provide accurate references for prior and related work.
+
+The following text cites various types of articles so that the references section of the present document will include them.
+
+The  and Bib style files provided roughly follow the American Psychological Association format. If your own bib file is named , then placing the following before any appendices in your   file will generate the references section for you:
+
+You can obtain the complete ACL Anthology as a Bib from . To include both the anthology and your own bib file, use the following instead of the above.
+
+As part of our work to make ACL materials more widely used and cited outside of our discipline, ACL has registered as a CrossRef member, as a registrant of Digital Object Identifiers (DOIs), the standard for registering permanent URNs for referencing scholarly materials.
+
+All camera-ready references are required to contain the appropriate DOIs (or as a second resort, the hyperlinked ACL Anthology Identifier) to all cited works. Appropriate records should be found for most materials in the current ACL Anthology at . As examples, we cite  to show you how papers with a DOI will appear in the bibliography. We cite  to show how papers without a DOI but with an ACL Anthology Identifier will appear in the bibliography.
+
+Please ensure that you use Bib that contain DOI or URLs for any of the ACL materials that you reference. If the Bib file contains DOI fields, the paper title in the references section will appear as a hyperlink to the DOI, using the hyperref  package.
+
+Appendices, if any, directly follow the text and the references (but only in the camera-ready; see Appendix~). Letter them in sequence and provide an informative title: .

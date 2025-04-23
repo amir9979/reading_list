@@ -1,0 +1,5 @@
+We have used the following datasets as source datasets: 
+
+We have used the following datasets as target datasets:
+
+In each case, for preparing our target dataset we have selected 500 examples. The selection, though random, is done in such a way that our target datasets are balanced, i.e. the number of examples with each of the different possible labels is almost equal.
