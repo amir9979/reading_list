@@ -1,6 +1,7 @@
 import json
 import os
 import arxiv
+import re
 
 def article_to_dict(article_id):
     """
