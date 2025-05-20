@@ -11,6 +11,7 @@ def parse_email_content(email_content):
 
     if start not in email_content:
         start = start.replace('\r', '')
+    print(email_content)
     email_content = email_content.split(start)[1].split(sep)[1:]
     papers = [x.split(save_sep)[0] for x in email_content][:-1]
     papers = [p.split(initial_sep)[1] for p in papers]
