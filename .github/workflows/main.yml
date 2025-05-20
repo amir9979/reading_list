@@ -22,7 +22,7 @@ jobs:
           python-version: '3.x'
 
       - name: Install pandas
-        run: python -m pip install pandas
+        run: python -m pip install pandas arxiv
 
       - name: Execute Python script on issue content
         id: base_issue
