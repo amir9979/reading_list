@@ -15,6 +15,7 @@ def parse_email_content(email_content):
     print(len(email_content))
     papers = [x.split(save_sep)[0] for x in email_content][:-1]
     papers = [p.split(initial_sep)[1] for p in papers]
+    papers = [p for p in papers if p.strip()]
     relevant_info = []
     for i, paper in enumerate(papers):
         print((i, len(papers), paper[:30]))
