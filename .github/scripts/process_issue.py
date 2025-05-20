@@ -29,4 +29,4 @@ def parse_email_content(email_content):
 
     return json.dumps(relevant_info)
 
-# print(parse_email_content(os.environ['ISSUE_BODY']))
+print(parse_email_content(os.environ['ISSUE_BODY']))
