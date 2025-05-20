@@ -12,7 +12,7 @@ def parse_email_content(email_content):
     if start not in email_content:
         start = start.replace('\r', '')
     print(email_content)
-    email_content = email_content.split(start)[1].split(sep)[1:]
+    email_content = email_content[email_content.find('###'):].split(sep)
     papers = [x.split(save_sep)[0] for x in email_content][:-1]
     papers = [p.split(initial_sep)[1] for p in papers]
     relevant_info = []
@@ -29,4 +29,4 @@ def parse_email_content(email_content):
 
     return json.dumps(relevant_info)
 
-print(parse_email_content(os.environ['ISSUE_BODY']))
+# print(parse_email_content(os.environ['ISSUE_BODY']))
