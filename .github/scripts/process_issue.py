@@ -3,7 +3,7 @@ import os
 import arxiv
 import re
 
-def article_to_dict(article_id):
+def article_to_dict(result ):
     """
     Converts an article's result object to a dictionary with semicolon-separated lists and basic types.
 
@@ -15,11 +15,9 @@ def article_to_dict(article_id):
     - dict: A dictionary representing the article with semicolon-separated lists.
     """
     # Get the result object using the provided function
-    result = get_article(article_id)
 
     # Convert the result object into a dictionary with basic types
     article_dict = {
-        'article_id': article_id,
         'entry_id': result.entry_id,
         'updated': result.updated.strftime('%Y-%m-%d %H:%M:%S') if result.updated else None,
         'published': result.published.strftime('%Y-%m-%d %H:%M:%S') if result.published else None,
