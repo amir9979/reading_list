@@ -26,7 +26,7 @@ def article_to_dict(result ):
         'summary': result.summary,
         'comment': result.comment,
         'journal_ref': result.journal_ref,
-        'doi': result.doi if result.doi else f'https://doi.org/10.48550/arXiv.{article_id}',
+        # 'doi': result.doi if result.doi else f'https://doi.org/10.48550/arXiv.{article_id}',
         'primary_category': result.primary_category,
         'categories': ';'.join(result.categories) if result.categories else None,
         # Join list into semicolon-separated string
